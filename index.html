@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -63,7 +63,6 @@
       <div class="header-actions">
         <a class="btn-special"><i class="fa-solid fa-cart-shopping"></i> نسخه ویژه</a>
         <a class="btn-ghost"><i class="fa-regular fa-user"></i> ورود / عضویت</a>
-        <div class="icon-btn" id="rssSettingsBtn" title="تنظیمات RSS"><i class="fa-solid fa-gear"></i></div>
         <div class="icon-btn"><i class="fa-solid fa-bars"></i></div>
       </div>
     </div>
@@ -274,8 +273,9 @@
   <footer>
     © ۱۴۰۳ خبر رادین — تمامی حقوق محفوظ است.
   </footer>
-  <script src="assets/app.js"></script>
-  <script src="assets/settings-modal.js"></script>
-  <script src="assets/home.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="app.js"></script>
+  <script src="home.js"></script>
 </body>
 </html>

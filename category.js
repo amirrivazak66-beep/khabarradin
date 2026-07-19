@@ -18,10 +18,8 @@
         <div class="empty-state">
           برای این دسته، خبری در فیدهای فعلی پیدا نشد.<br>
           می‌تونید فیدهای RSS رو از تنظیمات اصلاح یا اضافه کنید.
-          <br><button id="openSettingsFromEmpty">باز کردن تنظیمات RSS</button>
+          <br><a href="admin.html" id="openSettingsFromEmpty" style="display:inline-block; margin-top:12px; padding:10px 20px; border-radius:8px; background:linear-gradient(135deg,var(--gold-light),var(--gold)); color:var(--navy-950); font-weight:700; text-decoration:none;">رفتن به پنل مدیریت</a>
         </div>`;
-      const btn = document.getElementById('openSettingsFromEmpty');
-      if (btn) btn.addEventListener('click', () => KR.openSettingsModal());
       return;
     }
 
@@ -58,11 +56,27 @@
     });
   }
 
+  function showSkeleton(){
+    const listEl = document.getElementById('catList');
+    listEl.innerHTML = Array.from({length:5}).map(() => `
+      <div class="cat-list-item">
+        <div class="skel skel-card-thumb" style="width:180px; height:120px; border-radius:10px; flex-shrink:0;"></div>
+        <div class="info" style="flex:1;">
+          <div class="skel skel-line w50" style="margin-bottom:10px;"></div>
+          <div class="skel skel-line w80" style="height:16px; margin-bottom:10px;"></div>
+          <div class="skel skel-line" style="width:100%; margin-bottom:6px;"></div>
+          <div class="skel skel-line w50"></div>
+        </div>
+      </div>`).join('');
+  }
+
   async function load(){
     const cat = getParam('cat');
     document.getElementById('catTitle').textContent = cat === 'all' ? 'همه اخبار' : cat;
     document.getElementById('catNameBreadcrumb').textContent = cat === 'all' ? 'همه اخبار' : cat;
     document.title = 'خبر رادین | ' + (cat === 'all' ? 'همه اخبار' : cat);
+    document.getElementById('catCount').textContent = '';
+    showSkeleton();
 
     const all = await KR.getAllItems(true);
     filtered = (cat === 'all') ? all : all.filter(it => it.cat === cat);
@@ -73,7 +87,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    KR.mountSettingsModal(load);
     load();
   });
 })();

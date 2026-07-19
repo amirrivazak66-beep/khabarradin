@@ -67,7 +67,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    KR.mountSettingsModal(load);
     load();
   });
 })();

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>پنل مدیریت | خبر رادین</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy-950:#0b1626; --navy-900:#0f2038; --navy-800:#152a47; --navy-700:#1c3557;
+  --gold:#cc9a3c; --gold-light:#e0b959; --green:#2fae63; --red:#e14b4b;
+  --bg:#eef1f5; --text-dark:#16233a; --text-mute:#7c8aa0;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{font-family:'Vazirmatn',sans-serif; background:var(--bg); color:var(--text-dark); direction:rtl;}
+a{text-decoration:none; color:inherit;}
+
+#loginScreen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(circle at 30% 20%, #17294a, var(--navy-950) 60%);
+  padding:20px;
+}
+.login-box{
+  width:100%; max-width:380px; background:#101d33; border-radius:18px; padding:36px 32px;
+  border:1px solid rgba(255,255,255,.06); box-shadow:0 20px 60px rgba(0,0,0,.4);
+}
+.login-box .lock-badge{
+  width:56px; height:56px; border-radius:50%; margin:0 auto 18px;
+  background:radial-gradient(circle at 35% 30%, var(--gold-light), var(--gold) 60%, #8a6a22);
+  display:flex; align-items:center; justify-content:center; font-size:22px; color:var(--navy-950);
+}
+.login-box h2{color:#fff; font-size:18px; font-weight:800; text-align:center; margin-bottom:6px;}
+.login-box p.sub{color:#8a97ab; font-size:12.5px; text-align:center; margin-bottom:26px; line-height:1.8;}
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:12px; color:#9aa7ba; margin-bottom:6px;}
+.field input{
+  width:100%; background:#182b4a; border:1.5px solid #253f66; border-radius:9px; padding:11px 14px;
+  color:#fff; font-family:inherit; font-size:13.5px; outline:none; direction:ltr; text-align:right;
+}
+.field input:focus{border-color:var(--gold);}
+#loginBtn{
+  width:100%; margin-top:8px; padding:12px; border:none; border-radius:9px; cursor:pointer;
+  background:linear-gradient(135deg,var(--gold-light),var(--gold)); color:var(--navy-950);
+  font-weight:800; font-size:14px; font-family:inherit;
+}
+#loginBtn:disabled{opacity:.6; cursor:wait;}
+.login-error{
+  margin-top:12px; background:rgba(225,75,75,.12); color:#ff9a9a; font-size:12.5px;
+  padding:10px 12px; border-radius:8px; display:none; text-align:center;
+}
+.login-note{margin-top:22px; font-size:11px; color:#5c6b83; text-align:center; line-height:1.9;}
+
+#dashboard{display:none; min-height:100vh; grid-template-columns:230px 1fr;}
+#dashboard.show{display:grid;}
+.sidebar{background:var(--navy-950); color:#c4cddb; padding:22px 16px; display:flex; flex-direction:column;}
+.sidebar .brand{display:flex; align-items:center; gap:10px; padding:0 6px 24px; border-bottom:1px solid rgba(255,255,255,.07); margin-bottom:16px;}
+.sidebar .brand .dot{width:36px; height:36px; border-radius:9px; background:linear-gradient(135deg,var(--gold-light),var(--gold)); display:flex; align-items:center; justify-content:center; color:var(--navy-950); font-size:15px;}
+.sidebar .brand span{font-weight:800; font-size:14.5px; color:#fff;}
+.sidebar nav a{display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:9px; font-size:13.5px; color:#a9b5c8; margin-bottom:4px; cursor:pointer;}
+.sidebar nav a i{width:16px; text-align:center; color:#7c8aa0;}
+.sidebar nav a.active{background:var(--navy-800); color:#fff;}
+.sidebar nav a.active i{color:var(--gold-light);}
+.sidebar nav a:hover{background:rgba(255,255,255,.04); color:#fff;}
+.sidebar .spacer{flex:1;}
+.sidebar .logout{color:#e28a8a;}
+
+.main-area{padding:26px 32px; max-width:900px;}
+.topline{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
+.topline h1{font-size:19px; font-weight:800;}
+.topline .who{font-size:12.5px; color:var(--text-mute);}
+
+.stat-row{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:22px;}
+.stat-card{background:#fff; border-radius:14px; padding:16px 18px;}
+.stat-card .n{font-size:22px; font-weight:800; color:var(--text-dark);}
+.stat-card .l{font-size:12px; color:var(--text-mute); margin-top:4px;}
+
+.panel{background:#fff; border-radius:16px; padding:24px 26px; margin-bottom:20px;}
+.panel h3{font-size:15px; font-weight:800; margin-bottom:6px;}
+.panel .sub{font-size:12.5px; color:var(--text-mute); line-height:1.9; margin-bottom:18px;}
+.feed-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
+.feed-row input{flex:1; border:1.5px solid #e3e7ee; border-radius:8px; padding:9px 10px; font-family:inherit; font-size:13px;}
+.feed-row input.cat{max-width:120px; flex:none;}
+.feed-row button{border:none; background:#fbe9e9; color:#c94b4b; width:34px; height:34px; border-radius:8px; cursor:pointer; font-size:13px;}
+.row-actions{display:flex; gap:10px; margin-top:14px; align-items:center;}
+.row-actions button{padding:11px 18px; border-radius:9px; border:none; font-weight:700; font-size:13.5px; cursor:pointer; font-family:inherit;}
+.btn-secondary{background:#eef1f5; color:#28344a;}
+.btn-primary{background:linear-gradient(135deg,var(--gold-light),var(--gold)); color:var(--navy-950);}
+.btn-primary:disabled{opacity:.6; cursor:wait;}
+.save-msg{margin-top:12px; font-size:12.5px; color:var(--green); display:none;}
+.notice{background:#fdf9f0; border:1.5px dashed #eadfc4; color:#7a6428; font-size:12.5px; padding:12px 14px; border-radius:10px; margin-bottom:18px; line-height:1.9;}
+
+.pass-fields{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.pass-fields .field label{font-size:12px; color:var(--text-mute); margin-bottom:6px; display:block;}
+.pass-fields input{width:100%; border:1.5px solid #e3e7ee; border-radius:8px; padding:10px 12px; font-family:inherit; font-size:13px;}
+
+.view{display:none;}
+.view.active{display:block;}
+
+@media(max-width:800px){
+  #dashboard.show{grid-template-columns:1fr;}
+  .sidebar{display:flex; flex-direction:row; overflow-x:auto;}
+  .sidebar .brand{display:none;}
+  .stat-row{grid-template-columns:1fr;}
+  .pass-fields{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+  <div id="loginScreen">
+    <div class="login-box">
+      <div class="lock-badge"><i class="fa-solid fa-shield-halved"></i></div>
+      <h2>ورود به پنل مدیریت</h2>
+      <p class="sub">پنل پشتیبانی و مدیریت محتوای خبر رادین<br>با ایمیل و رمز عبور حساب مدیریتی وارد شوید.</p>
+      <div class="field">
+        <label>ایمیل</label>
+        <input type="email" id="email" placeholder="admin@example.com" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>رمز عبور</label>
+        <input type="password" id="password" placeholder="رمز عبور" autocomplete="current-password">
+      </div>
+      <button id="loginBtn">ورود به پنل</button>
+      <div class="login-error" id="loginError"></div>
+      <div class="login-note">
+        این حساب همون کاربریه که در Supabase → Authentication → Users ساخته‌اید.
+      </div>
+    </div>
+  </div>
+
+  <div id="dashboard">
+    <aside class="sidebar">
+      <div class="brand"><div class="dot"><i class="fa-solid fa-newspaper"></i></div><span>پنل خبر رادین</span></div>
+      <nav>
+        <a data-view="viewDashboard" class="active"><i class="fa-solid fa-gauge"></i> داشبورد</a>
+        <a data-view="viewFeeds"><i class="fa-solid fa-rss"></i> فیدهای RSS</a>
+        <a data-view="viewSecurity"><i class="fa-solid fa-lock"></i> امنیت</a>
+      </nav>
+      <div class="spacer"></div>
+      <nav><a id="logoutBtn" class="logout"><i class="fa-solid fa-right-from-bracket"></i> خروج</a></nav>
+    </aside>
+
+    <main class="main-area">
+      <div class="topline">
+        <h1 id="viewTitle">داشبورد</h1>
+        <span class="who"><i class="fa-solid fa-user-shield"></i> <span id="whoName">مدیر</span></span>
+      </div>
+
+      <section id="viewDashboard" class="view active">
+        <div class="stat-row">
+          <div class="stat-card"><div class="n" id="statFeeds">-</div><div class="l">فید RSS فعال</div></div>
+          <div class="stat-card"><div class="n" id="statCats">-</div><div class="l">دسته‌بندی پوشش داده‌شده</div></div>
+          <div class="stat-card"><div class="n" id="statUpdated">-</div><div class="l">آخرین بررسی</div></div>
+        </div>
+        <div class="notice">
+          این پنل به دیتابیس واقعی (Supabase) وصله. هر تغییری که این‌جا در فیدهای RSS بدید، برای <b>همه</b> بازدیدکننده‌های سایت یکسان اعمال می‌شه.
+        </div>
+        <div class="panel">
+          <h3>خلاصه فیدهای فعال</h3>
+          <p class="sub">این فهرست همون فیدهاییه که هم‌اکنون در صفحه اصلی و صفحات دسته‌بندی سایت استفاده می‌شن.</p>
+          <div id="dashFeedList">در حال بارگذاری...</div>
+        </div>
+      </section>
+
+      <section id="viewFeeds" class="view">
+        <div class="panel">
+          <h3>مدیریت فیدهای RSS</h3>
+          <p class="sub">آدرس فید RSS هر منبع خبری رو همراه با نام دسته وارد کنید. نام دسته باید دقیقاً با دسته‌های استفاده‌شده در منوی سایت یکی باشه (مثلاً «اقتصاد»، «بورس»، «سیاست»، «کسب‌وکار»، «بین‌الملل»).</p>
+          <div id="feedRows">در حال بارگذاری...</div>
+          <div class="row-actions">
+            <button class="btn-secondary" id="addFeedBtn">+ افزودن فید جدید</button>
+            <button class="btn-primary" id="saveFeedBtn">ذخیره در دیتابیس</button>
+          </div>
+          <div class="save-msg" id="feedSaveMsg"><i class="fa-solid fa-circle-check"></i> با موفقیت در دیتابیس ذخیره شد.</div>
+        </div>
+      </section>
+
+      <section id="viewSecurity" class="view">
+        <div class="panel">
+          <h3>تغییر رمز عبور</h3>
+          <p class="sub">رمز جدید در حساب Supabase شما به‌روزرسانی می‌شه و از همه دستگاه‌ها با رمز جدید وارد می‌شید.</p>
+          <div class="pass-fields">
+            <div class="field"><label>رمز فعلی</label><input type="password" id="curPass"></div>
+            <div class="field"><label>رمز جدید</label><input type="password" id="newPass"></div>
+          </div>
+          <div class="row-actions">
+            <button class="btn-primary" id="changePassBtn">به‌روزرسانی رمز</button>
+          </div>
+          <div class="save-msg" id="passSaveMsg"><i class="fa-solid fa-circle-check"></i> رمز عبور تغییر کرد.</div>
+          <div class="login-error" id="passError" style="display:none;"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script>
+(function(){
+  let feeds = [];       // { id, cat, url }
+  let deletedIds = [];
+  let currentEmail = '';
+
+  function showDashboard(email){
+    currentEmail = email;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').classList.add('show');
+    document.getElementById('whoName').textContent = email || 'مدیر';
+    loadFeedsFromDb();
+  }
+
+  function showLoginError(msg){
+    const el = document.getElementById('loginError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  // ---- Login ----
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn');
+    document.getElementById('loginError').style.display = 'none';
+
+    if (!email || !password){
+      showLoginError('ایمیل و رمز عبور را وارد کنید.');
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'در حال ورود...';
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    btn.disabled = false; btn.textContent = 'ورود به پنل';
+
+    if (error){
+      showLoginError('ایمیل یا رمز عبور اشتباه است.');
+      return;
+    }
+    showDashboard(data.user.email);
+  });
+  document.getElementById('password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('loginBtn').click();
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    location.reload();
+  });
+
+  // ---- Sidebar nav ----
+  document.querySelectorAll('.sidebar nav a[data-view]').forEach(link => {
+    link.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar nav a[data-view]').forEach(a => a.classList.remove('active'));
+      link.classList.add('active');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(link.dataset.view).classList.add('active');
+      document.getElementById('viewTitle').textContent = link.textContent.trim();
+    });
+  });
+
+  // ---- Feed management (Supabase-backed) ----
+  function renderFeedRows(){
+    const wrap = document.getElementById('feedRows');
+    wrap.innerHTML = '';
+    feeds.forEach((f, idx) => {
+      const row = document.createElement('div');
+      row.className = 'feed-row';
+      row.innerHTML = `
+        <input class="cat" data-idx="${idx}" data-field="cat" value="${f.cat}" placeholder="دسته">
+        <input data-idx="${idx}" data-field="url" value="${f.url}" placeholder="آدرس RSS">
+        <button data-remove="${idx}">✕</button>`;
+      wrap.appendChild(row);
+    });
+
+    wrap.querySelectorAll('button[data-remove]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.remove);
+        if (feeds[idx].id) deletedIds.push(feeds[idx].id);
+        feeds.splice(idx, 1);
+        renderFeedRows();
+      });
+    });
+    wrap.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        feeds[inp.dataset.idx][inp.dataset.field] = inp.value;
+      });
+    });
+  }
+
+  async function loadFeedsFromDb(){
+    const { data, error } = await sb.from('rss_feeds').select('*').order('created_at');
+    if (error){
+      document.getElementById('feedRows').innerHTML = '<p style="color:#c94b4b; font-size:13px;">خطا در اتصال به دیتابیس: ' + error.message + '</p>';
+      return;
+    }
+    feeds = (data || []).map(d => ({ id: d.id, cat: d.category, url: d.url }));
+    deletedIds = [];
+    renderFeedRows();
+    renderDashboardStats();
+    renderDashFeedList();
+  }
+
+  document.getElementById('addFeedBtn').addEventListener('click', () => {
+    feeds.push({ id: null, cat: 'دسته', url: '' });
+    renderFeedRows();
+  });
+
+  document.getElementById('saveFeedBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveFeedBtn');
+    btn.disabled = true; btn.textContent = 'در حال ذخیره...';
+
+    try{
+      for (const id of deletedIds){
+        await sb.from('rss_feeds').delete().eq('id', id);
+      }
+      deletedIds = [];
+
+      for (const f of feeds){
+        if (!f.url || !f.url.trim()) continue;
+        if (f.id){
+          await sb.from('rss_feeds').update({ category: f.cat, url: f.url }).eq('id', f.id);
+        } else {
+          const { data, error } = await sb.from('rss_feeds').insert({ category: f.cat, url: f.url }).select();
+          if (!error && data && data[0]) f.id = data[0].id;
+        }
+      }
+      const msg = document.getElementById('feedSaveMsg');
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 3000);
+      renderDashboardStats();
+      renderDashFeedList();
+    }catch(e){
+      alert('خطا در ذخیره‌سازی: ' + e.message);
+    }
+    btn.disabled = false; btn.textContent = 'ذخیره در دیتابیس';
+  });
+
+  function renderDashboardStats(){
+    document.getElementById('statFeeds').textContent = feeds.length;
+    const cats = new Set(feeds.map(f => f.cat));
+    document.getElementById('statCats').textContent = cats.size;
+    document.getElementById('statUpdated').textContent = 'هم‌اکنون';
+  }
+
+  function renderDashFeedList(){
+    const el = document.getElementById('dashFeedList');
+    if (feeds.length === 0){
+      el.innerHTML = '<p style="font-size:12.5px; color:#aab4c2;">فیدی تنظیم نشده.</p>';
+      return;
+    }
+    el.innerHTML = feeds.map(f => `
+      <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #eceff3; font-size:13px; gap:10px;">
+        <span style="font-weight:700; flex-shrink:0;">${f.cat}</span>
+        <span style="color:#7c8aa0; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${f.url}</span>
+      </div>`).join('');
+  }
+
+  // ---- Change password (real Supabase auth) ----
+  document.getElementById('changePassBtn').addEventListener('click', async () => {
+    const cur = document.getElementById('curPass').value;
+    const next = document.getElementById('newPass').value;
+    const errEl = document.getElementById('passError');
+    const okEl = document.getElementById('passSaveMsg');
+    errEl.style.display = 'none';
+    okEl.style.display = 'none';
+
+    if (!next || next.length < 6){
+      errEl.textContent = 'رمز جدید باید حداقل ۶ کاراکتر باشه.';
+      errEl.style.display = 'block';
+      return;
+    }
+    // تایید رمز فعلی با ورود مجدد
+    const { error: reauthError } = await sb.auth.signInWithPassword({ email: currentEmail, password: cur });
+    if (reauthError){
+      errEl.textContent = 'رمز فعلی درست نیست.';
+      errEl.style.display = 'block';
+      return;
+    }
+    const { error } = await sb.auth.updateUser({ password: next });
+    if (error){
+      errEl.textContent = 'خطا در تغییر رمز: ' + error.message;
+      errEl.style.display = 'block';
+      return;
+    }
+    document.getElementById('curPass').value = '';
+    document.getElementById('newPass').value = '';
+    okEl.style.display = 'block';
+    setTimeout(() => okEl.style.display = 'none', 3000);
+  });
+
+  // ---- Auto-login if session already active ----
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session){
+      showDashboard(session.user.email);
+    }
+  })();
+})();
+</script>
+</body>
+</html>

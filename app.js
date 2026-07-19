@@ -48,15 +48,19 @@
     return toFa(code);
   }
 
-  function loadFeeds(){
+  async function loadFeeds(){
     try{
-      const saved = localStorage.getItem('khabarradin_feeds');
-      if (saved) return JSON.parse(saved);
-    }catch(e){}
+      if (window.sb){
+        const { data, error } = await window.sb.from('rss_feeds').select('category,url').order('created_at');
+        if (error) throw error;
+        if (data && data.length){
+          return data.map(d => ({ cat: d.category, url: d.url }));
+        }
+      }
+    }catch(e){
+      console.warn('Supabase feed load failed, falling back to defaults:', e);
+    }
     return DEFAULT_FEEDS.slice();
-  }
-  function saveFeeds(feeds){
-    localStorage.setItem('khabarradin_feeds', JSON.stringify(feeds));
   }
 
   function extractImage(itemEl, descText){
@@ -111,7 +115,7 @@
     if (!forceRefresh && _cache && (Date.now() - _cache.ts) < 5*60*1000){
       return _cache.items;
     }
-    const feeds = loadFeeds();
+    const feeds = await loadFeeds();
     const results = await Promise.all(feeds.map(fetchFeed));
     let all = results.flat();
     all.sort((a,b) => b.pubDate - a.pubDate);
@@ -142,7 +146,7 @@
 
   global.KR = {
     DEFAULT_FEEDS, toFa, relTime, faDate, newsCode,
-    loadFeeds, saveFeeds, getAllItems, fallbackImageFor,
+    loadFeeds, getAllItems, fallbackImageFor,
     articleUrl, categoryUrl
   };
 })(window);
