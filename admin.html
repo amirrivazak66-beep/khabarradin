@@ -125,6 +125,26 @@ a{text-decoration:none; color:inherit;}
 .view.active{display:block; animation:view-fade-in var(--dur) var(--ease);}
 @keyframes view-fade-in{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
 
+.pull-report-item{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:10px 12px; border-radius:10px; margin-bottom:8px; font-size:12.5px;
+}
+.pull-report-item.ok{background:rgba(38,185,117,.08); color:#1c8a58;}
+.pull-report-item.fail{background:rgba(239,83,80,.08); color:#c94b4b;}
+.pull-report-item b{font-weight:800;}
+.recent-news-item{
+  display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px dashed #eceff3; font-size:13px;
+}
+.recent-news-item:last-child{border-bottom:none;}
+.recent-news-item .thumb{width:44px; height:36px; border-radius:7px; background-size:cover; background-position:center; flex-shrink:0; background-color:#eef1f5;}
+.recent-news-item .cat-tag{font-size:11px; font-weight:700; color:var(--gold); flex-shrink:0;}
+.recent-news-item .title{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.recent-news-item .time{font-size:11px; color:var(--text-mute); flex-shrink:0;}
+.recent-news-item .unpub-btn{
+  border:none; background:#f3f5f8; color:#5c697d; font-size:11px; padding:5px 9px; border-radius:7px; cursor:pointer; flex-shrink:0;
+}
+.recent-news-item .unpub-btn:hover{background:#e3e8f0;}
+
 @media(max-width:800px){
   #dashboard.show{grid-template-columns:1fr;}
   .sidebar{display:flex; flex-direction:row; overflow-x:auto;}
@@ -163,6 +183,7 @@ a{text-decoration:none; color:inherit;}
       <nav>
         <a data-view="viewDashboard" class="active"><i class="fa-solid fa-gauge"></i> داشبورد</a>
         <a data-view="viewFeeds"><i class="fa-solid fa-rss"></i> فیدهای RSS</a>
+        <a data-view="viewNews"><i class="fa-solid fa-newspaper"></i> خبرها</a>
         <a data-view="viewSecurity"><i class="fa-solid fa-lock"></i> امنیت</a>
       </nav>
       <div class="spacer"></div>
@@ -194,13 +215,33 @@ a{text-decoration:none; color:inherit;}
       <section id="viewFeeds" class="view">
         <div class="panel">
           <h3>مدیریت فیدهای RSS</h3>
-          <p class="sub">آدرس فید RSS هر منبع خبری رو همراه با نام دسته وارد کنید. نام دسته باید دقیقاً با دسته‌های استفاده‌شده در منوی سایت یکی باشه (مثلاً «اقتصاد»، «بورس»، «سیاست»، «کسب‌وکار»، «بین‌الملل»).</p>
+          <p class="sub">برای هر بخش/دسته‌بندی سایت، یک آدرس RSS مشخص کنید. برای هر فید می‌تونید تعداد خبر دریافتی، بازه بروزرسانی، و این‌که تصویر هم دریافت بشه یا نه رو تنظیم کنید.</p>
           <div id="feedRows">در حال بارگذاری...</div>
           <div class="row-actions">
             <button class="btn-secondary" id="addFeedBtn">+ افزودن فید جدید</button>
             <button class="btn-primary" id="saveFeedBtn">ذخیره در دیتابیس</button>
           </div>
           <div class="save-msg" id="feedSaveMsg"><i class="fa-solid fa-circle-check"></i> با موفقیت در دیتابیس ذخیره شد.</div>
+        </div>
+      </section>
+
+      <section id="viewNews" class="view">
+        <div class="panel">
+          <h3>دریافت و بررسی خبرها</h3>
+          <p class="sub">با این دکمه همه فیدهای بالا خونده می‌شن و خبرهای جدید در دیتابیس ذخیره می‌شن. لینک منبع اصلی هرگز به بازدیدکننده‌ها نمایش داده نمی‌شه — فقط برای مرجع داخلی نگه داشته می‌شه.</p>
+          <div class="row-actions">
+            <button class="btn-primary" id="pullNowBtn"><i class="fa-solid fa-rotate"></i> دریافت اخبار از RSS</button>
+            <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-mute);">
+              <input type="checkbox" id="autoPullToggle"> بروزرسانی خودکار تا وقتی این پنل بازه
+            </label>
+          </div>
+          <div id="pullReport" style="margin-top:16px;"></div>
+        </div>
+
+        <div class="panel">
+          <h3>آخرین خبرهای ذخیره‌شده</h3>
+          <p class="sub">همین لیست، محتوایی هست که الان روی صفحه اصلی سایت نمایش داده می‌شه.</p>
+          <div id="recentNewsList">در حال بارگذاری...</div>
         </div>
       </section>
 
@@ -224,6 +265,7 @@ a{text-decoration:none; color:inherit;}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
+<script src="app.js"></script>
 <script>
 (function(){
   let feeds = [];       // { id, cat, url }
@@ -236,6 +278,7 @@ a{text-decoration:none; color:inherit;}
     document.getElementById('dashboard').classList.add('show');
     document.getElementById('whoName').textContent = email || 'مدیر';
     loadFeedsFromDb();
+    renderRecentNews();
   }
 
   function showLoginError(msg){
@@ -286,15 +329,27 @@ a{text-decoration:none; color:inherit;}
   });
 
   // ---- Feed management (Supabase-backed) ----
+  function categoryOptionsHtml(selected){
+    return KR.CATEGORY_OPTIONS.map(c => `<option value="${c}" ${c===selected?'selected':''}>${c}</option>`).join('');
+  }
+
   function renderFeedRows(){
     const wrap = document.getElementById('feedRows');
     wrap.innerHTML = '';
     feeds.forEach((f, idx) => {
       const row = document.createElement('div');
       row.className = 'feed-row';
+      row.style.flexWrap = 'wrap';
       row.innerHTML = `
-        <input class="cat" data-idx="${idx}" data-field="cat" value="${f.cat}" placeholder="دسته">
-        <input data-idx="${idx}" data-field="url" value="${f.url}" placeholder="آدرس RSS">
+        <select class="cat" data-idx="${idx}" data-field="cat" style="max-width:150px; flex:none; border:1.5px solid #e3e7ee; border-radius:9px; padding:9px 10px; font-family:inherit; font-size:13px;">
+          ${categoryOptionsHtml(f.cat)}
+        </select>
+        <input data-idx="${idx}" data-field="url" value="${f.url}" placeholder="آدرس RSS" style="min-width:220px;">
+        <input type="number" min="1" max="30" data-idx="${idx}" data-field="itemCount" value="${f.itemCount}" title="تعداد خبر" style="max-width:70px; flex:none;">
+        <input type="number" min="5" max="1440" data-idx="${idx}" data-field="updateIntervalMinutes" value="${f.updateIntervalMinutes}" title="بازه بروزرسانی (دقیقه)" style="max-width:80px; flex:none;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mute); flex:none;">
+          <input type="checkbox" data-idx="${idx}" data-field="includeMedia" ${f.includeMedia ? 'checked' : ''}> تصویر
+        </label>
         <button data-remove="${idx}">✕</button>`;
       wrap.appendChild(row);
     });
@@ -307,9 +362,18 @@ a{text-decoration:none; color:inherit;}
         renderFeedRows();
       });
     });
-    wrap.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('input', () => {
-        feeds[inp.dataset.idx][inp.dataset.field] = inp.value;
+    wrap.querySelectorAll('select, input').forEach(inp => {
+      const evt = inp.type === 'checkbox' ? 'change' : 'input';
+      inp.addEventListener(evt, () => {
+        const idx = inp.dataset.idx;
+        const field = inp.dataset.field;
+        if (inp.type === 'checkbox'){
+          feeds[idx][field] = inp.checked;
+        } else if (inp.type === 'number'){
+          feeds[idx][field] = Number(inp.value) || 0;
+        } else {
+          feeds[idx][field] = inp.value;
+        }
       });
     });
   }
@@ -320,7 +384,12 @@ a{text-decoration:none; color:inherit;}
       document.getElementById('feedRows').innerHTML = '<p style="color:#c94b4b; font-size:13px;">خطا در اتصال به دیتابیس: ' + error.message + '</p>';
       return;
     }
-    feeds = (data || []).map(d => ({ id: d.id, cat: d.category, url: d.url }));
+    feeds = (data || []).map(d => ({
+      id: d.id, cat: d.category, url: d.url,
+      itemCount: d.item_count ?? 5,
+      updateIntervalMinutes: d.update_interval_minutes ?? 60,
+      includeMedia: d.include_media !== false
+    }));
     deletedIds = [];
     renderFeedRows();
     renderDashboardStats();
@@ -328,7 +397,7 @@ a{text-decoration:none; color:inherit;}
   }
 
   document.getElementById('addFeedBtn').addEventListener('click', () => {
-    feeds.push({ id: null, cat: 'دسته', url: '' });
+    feeds.push({ id: null, cat: KR.CATEGORY_OPTIONS[0], url: '', itemCount: 5, updateIntervalMinutes: 60, includeMedia: true });
     renderFeedRows();
   });
 
@@ -344,10 +413,17 @@ a{text-decoration:none; color:inherit;}
 
       for (const f of feeds){
         if (!f.url || !f.url.trim()) continue;
+        const payload = {
+          category: f.cat,
+          url: f.url,
+          item_count: f.itemCount || 5,
+          update_interval_minutes: f.updateIntervalMinutes || 60,
+          include_media: f.includeMedia !== false
+        };
         if (f.id){
-          await sb.from('rss_feeds').update({ category: f.cat, url: f.url }).eq('id', f.id);
+          await sb.from('rss_feeds').update(payload).eq('id', f.id);
         } else {
-          const { data, error } = await sb.from('rss_feeds').insert({ category: f.cat, url: f.url }).select();
+          const { data, error } = await sb.from('rss_feeds').insert(payload).select();
           if (!error && data && data[0]) f.id = data[0].id;
         }
       }
@@ -380,6 +456,80 @@ a{text-decoration:none; color:inherit;}
         <span style="font-weight:700; flex-shrink:0;">${f.cat}</span>
         <span style="color:#7c8aa0; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${f.url}</span>
       </div>`).join('');
+  }
+
+  // ---- News pull + verification report ----
+  let autoPullTimer = null;
+
+  async function runPullNow(){
+    const btn = document.getElementById('pullNowBtn');
+    const reportEl = document.getElementById('pullReport');
+    btn.disabled = true;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> در حال دریافت...';
+    reportEl.innerHTML = '';
+
+    try{
+      const reports = await KR.pullAllFeeds();
+      reportEl.innerHTML = reports.map(r => {
+        if (r.ok){
+          return `<div class="pull-report-item ok"><span>✅ دسته «<b>${r.cat}</b>» — ${r.fetched} خبر خونده شد، ${r.inserted} خبر جدید ذخیره شد.</span></div>`;
+        }
+        return `<div class="pull-report-item fail"><span>⚠️ دسته «<b>${r.cat}</b>» — این فید خونده نشد (${r.error || 'خطای نامشخص'}). آدرس RSS را بررسی کنید.</span></div>`;
+      }).join('');
+      document.getElementById('statUpdated').textContent = 'هم‌اکنون';
+      await renderRecentNews();
+    }catch(e){
+      reportEl.innerHTML = `<div class="pull-report-item fail">خطا در دریافت اخبار: ${e.message}</div>`;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+
+  document.getElementById('pullNowBtn').addEventListener('click', runPullNow);
+
+  document.getElementById('autoPullToggle').addEventListener('change', (e) => {
+    if (autoPullTimer) window.clearInterval(autoPullTimer);
+    if (e.target.checked){
+      // بازه بروزرسانی خودکار = کوتاه‌ترین بازه تنظیم‌شده در بین فیدها (حداقل ۵ دقیقه)
+      const minutes = Math.max(5, Math.min(...feeds.map(f => f.updateIntervalMinutes || 60), 1440));
+      autoPullTimer = window.setInterval(runPullNow, minutes * 60 * 1000);
+    }
+  });
+
+  async function renderRecentNews(){
+    const el = document.getElementById('recentNewsList');
+    const { data, error } = await sb
+      .from('news_items')
+      .select('id,category,title,image_url,pub_date,published')
+      .order('pub_date', { ascending: false })
+      .limit(15);
+
+    if (error){
+      el.innerHTML = `<p style="color:#c94b4b; font-size:13px;">خطا در بارگذاری: ${error.message}</p>`;
+      return;
+    }
+    if (!data || data.length === 0){
+      el.innerHTML = '<p style="font-size:12.5px; color:#aab4c2;">هنوز خبری دریافت نشده — روی «دریافت اخبار از RSS» بزنید.</p>';
+      return;
+    }
+    el.innerHTML = data.map(item => `
+      <div class="recent-news-item">
+        <div class="thumb" style="background-image:url('${item.image_url || ''}')"></div>
+        <span class="cat-tag">${item.category}</span>
+        <span class="title">${item.title}</span>
+        <span class="time">${KR.relTime(new Date(item.pub_date))}</span>
+        <button class="unpub-btn" data-id="${item.id}" data-pub="${item.published}">${item.published ? 'عدم انتشار' : 'انتشار'}</button>
+      </div>`).join('');
+
+    el.querySelectorAll('.unpub-btn').forEach(b => {
+      b.addEventListener('click', async () => {
+        const newState = b.dataset.pub !== 'true';
+        await sb.from('news_items').update({ published: newState }).eq('id', b.dataset.id);
+        renderRecentNews();
+      });
+    });
   }
 
   // ---- Change password (real Supabase auth) ----

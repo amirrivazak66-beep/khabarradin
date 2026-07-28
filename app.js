@@ -1,9 +1,23 @@
-/* خبر رادین — موتور مشترک RSS و رندر صفحات */
+/* خبر رادین — موتور مشترک: پیکربندی فیدها + کش خبر + رندر صفحات
+ *
+ * معماری:
+ *  - rss_feeds  → تنظیمات هر منبع RSS (دسته، آدرس، تعداد خبر، بازه بروزرسانی، رسانه)
+ *  - news_items → کش خبرهای دریافت‌شده؛ صفحات عمومی سایت فقط از همین جدول
+ *                 می‌خونن، هرگز مستقیماً RSS رو fetch نمی‌کنن و لینک منبع
+ *                 اصلی هیچ‌وقت به بازدیدکننده نمایش داده نمی‌شه.
+ *  - پر کردن news_items («دریافت اخبار») فقط از داخل پنل مدیریت (admin.html)
+ *    انجام می‌شه.
+ */
 (function (global) {
+  const CATEGORY_OPTIONS = [
+    'اقتصاد', 'سیاست', 'بین‌الملل', 'جامعه', 'فرهنگ و هنر',
+    'ورزش', 'فناوری', 'ویدیو', 'پادکست', 'گزارش‌ها', 'عمومی'
+  ];
+
   const DEFAULT_FEEDS = [
     { cat: 'اقتصاد',    url: 'https://www.isna.ir/rss' },
     { cat: 'سیاست',     url: 'https://www.khabaronline.ir/rss' },
-    { cat: 'کسب‌وکار',  url: 'https://www.yjc.ir/fa/rss/allnews' },
+    { cat: 'جامعه',     url: 'https://www.yjc.ir/fa/rss/allnews' },
     { cat: 'بین‌الملل', url: 'https://www.mehrnews.com/rss' },
     { cat: 'عمومی',     url: 'https://www.tabnak.ir/fa/rss/allnews' }
   ];
@@ -40,27 +54,45 @@
     try{ return date.toLocaleDateString('fa-IR'); }catch(e){ return ''; }
   }
 
-  function newsCode(link){
-    // کد خبر یکتا و پایدار بر اساس آدرس خبر (شبیه‌سازی کد خبر خبرگزاری‌ها)
+  function newsCode(id){
+    // کد خبر یکتا و پایدار، بر اساس id ردیف در دیتابیس (نه لینک منبع —
+    // چون لینک منبع دیگر هیچ‌جا در سمت کاربر استفاده نمی‌شود).
+    const str = String(id || '');
     let hash = 0;
-    for (let i=0;i<link.length;i++){ hash = (hash*31 + link.charCodeAt(i)) >>> 0; }
+    for (let i=0;i<str.length;i++){ hash = (hash*31 + str.charCodeAt(i)) >>> 0; }
     const code = '140' + (3 + (hash % 3)) + String(hash % 100000000).padStart(8,'0');
     return toFa(code);
   }
 
+  // ---------------------------------------------------------------------
+  // FEED CONFIGURATION (rss_feeds table) — used by the admin panel only
+  // ---------------------------------------------------------------------
   async function loadFeeds(){
     try{
       if (window.sb){
-        const { data, error } = await window.sb.from('rss_feeds').select('category,url').order('created_at');
+        const { data, error } = await window.sb
+          .from('rss_feeds')
+          .select('id,category,url,item_count,update_interval_minutes,include_media')
+          .order('created_at');
         if (error) throw error;
         if (data && data.length){
-          return data.map(d => ({ cat: d.category, url: d.url }));
+          return data.map(d => ({
+            id: d.id,
+            cat: d.category,
+            url: d.url,
+            itemCount: d.item_count ?? 5,
+            updateIntervalMinutes: d.update_interval_minutes ?? 60,
+            includeMedia: d.include_media !== false
+          }));
         }
       }
     }catch(e){
       console.warn('Supabase feed load failed, falling back to defaults:', e);
     }
-    return DEFAULT_FEEDS.slice();
+    return DEFAULT_FEEDS.map(f => ({
+      id: null, cat: f.cat, url: f.url,
+      itemCount: 5, updateIntervalMinutes: 60, includeMedia: true
+    }));
   }
 
   function extractImage(itemEl, descText){
@@ -81,7 +113,13 @@
     return (tmp.textContent || tmp.innerText || '').replace(/\s+/g,' ').trim();
   }
 
+  /**
+   * Fetches and parses one RSS feed. Respects feed.itemCount and
+   * feed.includeMedia. Used ONLY by the admin "pull" action — public
+   * pages never call this.
+   */
   async function fetchFeed(feed){
+    const limit = feed.itemCount || 5;
     let lastErr;
     for (const buildUrl of PROXIES){
       try{
@@ -90,37 +128,108 @@
         const text = await res.text();
         const xml = new DOMParser().parseFromString(text, 'text/xml');
         if (xml.querySelector('parsererror')) throw new Error('parse error');
-        const items = Array.from(xml.querySelectorAll('item')).slice(0, 20).map(itemEl => {
+        const items = Array.from(xml.querySelectorAll('item')).slice(0, limit).map(itemEl => {
           const title = (itemEl.querySelector('title')?.textContent || '').trim();
           const link = (itemEl.querySelector('link')?.textContent || '').trim();
           const pubDateText = itemEl.querySelector('pubDate')?.textContent;
           const pubDate = pubDateText ? new Date(pubDateText) : new Date();
           const descRaw = itemEl.querySelector('description')?.textContent || '';
-          const image = extractImage(itemEl, descRaw);
+          const image = feed.includeMedia === false ? null : extractImage(itemEl, descRaw);
           const desc = stripHtml(descRaw);
           const sourceHost = (() => { try{ return new URL(feed.url).hostname.replace('www.',''); }catch(e){ return ''; } })();
           return { title, link, pubDate, desc, image, cat: feed.cat, source: sourceHost };
         }).filter(it => it.title && it.link);
-        return items;
+        return { ok: true, items };
       }catch(err){
         lastErr = err;
       }
     }
     console.warn('Feed failed:', feed.url, lastErr);
-    return [];
+    return { ok: false, items: [], error: lastErr ? lastErr.message : 'unknown error' };
   }
 
+  /**
+   * Pulls ONE feed and upserts its items into news_items. Admin-only —
+   * requires an authenticated Supabase session (RLS enforces this
+   * server-side regardless). Returns a small report used by the admin
+   * UI to confirm ingestion succeeded.
+   */
+  async function pullFeedIntoDb(feed){
+    const result = await fetchFeed(feed);
+    if (!result.ok){
+      return { cat: feed.cat, url: feed.url, fetched: 0, inserted: 0, ok: false, error: result.error };
+    }
+
+    let inserted = 0;
+    for (const it of result.items){
+      const { error, data } = await window.sb
+        .from('news_items')
+        .upsert({
+          feed_id: feed.id || null,
+          category: feed.cat,
+          title: it.title,
+          summary: it.desc,
+          image_url: it.image,
+          source_url: it.link,
+          source_name: it.source,
+          pub_date: it.pubDate.toISOString()
+        }, { onConflict: 'source_url', ignoreDuplicates: false })
+        .select();
+      if (!error && data) inserted += data.length;
+    }
+
+    return { cat: feed.cat, url: feed.url, fetched: result.items.length, inserted, ok: true };
+  }
+
+  /**
+   * Pulls every configured feed. Returns an array of per-feed reports
+   * so the admin panel can show exactly what was read and stored.
+   */
+  async function pullAllFeeds(){
+    const feeds = await loadFeeds();
+    const reports = [];
+    for (const feed of feeds){
+      // Sequential on purpose — keeps proxy usage gentle and reports ordered.
+      // eslint-disable-next-line no-await-in-loop
+      reports.push(await pullFeedIntoDb(feed));
+    }
+    return reports;
+  }
+
+  // ---------------------------------------------------------------------
+  // PUBLIC SITE DATA — reads ONLY from the news_items cache table.
+  // The original RSS source_url is stored in the database for the
+  // admin's reference but is never selected/rendered here.
+  // ---------------------------------------------------------------------
   let _cache = null; // { items: [...], ts: Number }
+
   async function getAllItems(forceRefresh){
-    if (!forceRefresh && _cache && (Date.now() - _cache.ts) < 5*60*1000){
+    if (!forceRefresh && _cache && (Date.now() - _cache.ts) < 60*1000){
       return _cache.items;
     }
-    const feeds = await loadFeeds();
-    const results = await Promise.all(feeds.map(fetchFeed));
-    let all = results.flat();
-    all.sort((a,b) => b.pubDate - a.pubDate);
-    _cache = { items: all, ts: Date.now() };
-    return all;
+    try{
+      const { data, error } = await window.sb
+        .from('news_items')
+        .select('id,category,title,summary,image_url,pub_date')
+        .eq('published', true)
+        .order('pub_date', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+
+      const items = (data || []).map(d => ({
+        id: d.id,
+        title: d.title,
+        desc: d.summary || '',
+        image: d.image_url || null,
+        cat: d.category,
+        pubDate: new Date(d.pub_date)
+      }));
+      _cache = { items, ts: Date.now() };
+      return items;
+    }catch(e){
+      console.warn('news_items fetch failed:', e);
+      return [];
+    }
   }
 
   function fallbackImageFor(idx){
@@ -128,16 +237,7 @@
   }
 
   function articleUrl(item){
-    const p = new URLSearchParams({
-      title: item.title,
-      desc: item.desc || '',
-      image: item.image || '',
-      cat: item.cat,
-      link: item.link,
-      source: item.source || '',
-      date: item.pubDate.toISOString()
-    });
-    return 'news.html?' + p.toString();
+    return 'news.html?id=' + encodeURIComponent(item.id);
   }
 
   function categoryUrl(cat){
@@ -145,8 +245,10 @@
   }
 
   global.KR = {
-    DEFAULT_FEEDS, toFa, relTime, faDate, newsCode,
-    loadFeeds, getAllItems, fallbackImageFor,
+    CATEGORY_OPTIONS, DEFAULT_FEEDS,
+    toFa, relTime, faDate, newsCode,
+    loadFeeds, fetchFeed, pullFeedIntoDb, pullAllFeeds,
+    getAllItems, fallbackImageFor,
     articleUrl, categoryUrl
   };
 })(window);

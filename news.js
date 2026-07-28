@@ -1,24 +1,44 @@
-/* خبر رادین — رندر صفحه خبر */
+/* خبر رادین — رندر صفحه خبر
+ * تمام داده‌ها از جدول news_items (با id داخلی) خونده می‌شن — لینک منبع
+ * اصلی RSS هرگز به کاربر نمایش داده یا در URL این صفحه قرار داده نمی‌شه.
+ */
 (function(){
   function getParam(name){
     return new URLSearchParams(window.location.search).get(name) || '';
   }
 
   async function load(){
-    const title = getParam('title');
-    const desc = getParam('desc');
-    const image = getParam('image');
-    const cat = getParam('cat');
-    const link = getParam('link');
-    const source = getParam('source');
-    const dateStr = getParam('date');
-    const pubDate = dateStr ? new Date(dateStr) : new Date();
+    const id = getParam('id');
+    if (!id){
+      document.getElementById('articleTitle').textContent = 'خبر یافت نشد';
+      document.getElementById('articleBody').innerHTML = '<p>لینک این خبر معتبر نیست. <a href="index.html">بازگشت به صفحه اصلی</a></p>';
+      return;
+    }
+
+    const { data, error } = await window.sb
+      .from('news_items')
+      .select('id,category,title,summary,image_url,pub_date')
+      .eq('id', id)
+      .eq('published', true)
+      .single();
+
+    if (error || !data){
+      document.getElementById('articleTitle').textContent = 'خبر یافت نشد';
+      document.getElementById('articleBody').innerHTML = '<p>این خبر در دسترس نیست یا حذف شده. <a href="index.html">بازگشت به صفحه اصلی</a></p>';
+      return;
+    }
+
+    const title = data.title;
+    const desc = data.summary || '';
+    const image = data.image_url;
+    const cat = data.category;
+    const pubDate = new Date(data.pub_date);
 
     document.title = 'خبر رادین | ' + title;
     document.getElementById('pageTitle').textContent = 'خبر رادین | ' + title;
     document.getElementById('articleTitle').textContent = title;
     document.getElementById('articleLead').textContent = desc;
-    document.getElementById('newsCode').textContent = KR.newsCode(link || title);
+    document.getElementById('newsCode').textContent = KR.newsCode(data.id);
     document.getElementById('newsDate').textContent = KR.faDate(pubDate) + ' · ' + KR.relTime(pubDate);
     document.getElementById('newsCatTag').textContent = cat;
 
@@ -34,23 +54,20 @@
     }
 
     document.getElementById('articleBody').innerHTML =
-      `<p>${desc || 'خلاصه‌ای برای این خبر در دسترس نیست.'}</p>` +
-      (source ? `<p style="margin-top:14px; color:#7c8aa0; font-size:13px;">منبع: ${source}</p>` : '');
+      `<p>${desc || 'خلاصه‌ای برای این خبر در دسترس نیست.'}</p>`;
 
-    const sourceLinkEl = document.getElementById('sourceLink');
-    sourceLinkEl.href = link || '#';
+    document.getElementById('articleTags').innerHTML = `<span>${cat}</span>`;
 
-    document.getElementById('articleTags').innerHTML = `<span>${cat}</span>` + (source ? `<span>${source}</span>` : '');
-
+    // اشتراک‌گذاری فقط به لینک داخلی همین صفحه اشاره می‌کنه — نه منبع خارجی.
     const shareText = encodeURIComponent(title);
-    const shareUrl = encodeURIComponent(link || window.location.href);
+    const shareUrl = encodeURIComponent(window.location.href);
     document.getElementById('shareTelegram').href = `https://t.me/share/url?url=${shareUrl}&text=${shareText}`;
     document.getElementById('shareTwitter').href = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
     document.getElementById('shareWhatsapp').href = `https://wa.me/?text=${shareText}%20${shareUrl}`;
 
     // مطالب مرتبط
     const all = await KR.getAllItems();
-    const related = all.filter(it => it.cat === cat && it.link !== link).slice(0, 5);
+    const related = all.filter(it => it.cat === cat && it.id !== data.id).slice(0, 5);
     const relatedEl = document.getElementById('relatedList');
     if (related.length === 0){
       relatedEl.innerHTML = '<p style="font-size:12.5px; color:#aab4c2;">موردی یافت نشد.</p>';
