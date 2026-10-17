@@ -1,0 +1,70 @@
+/* خبر رادین — homepage visual theme */
+:root{--navy:#073f9f;--navy-2:#0647ad;--gold:#d7ad4c;--red:#ed001b;--paper:#f3f6fb;--ink:#10264c;--line:#e7edf6;--shadow:0 5px 22px rgba(13,49,105,.08);--radius:12px}
+body{background:#f3f6fb;color:#11264b}
+.wrap{width:min(1560px,calc(100% - 56px))}
+.utility-strip{background:#073a91;color:#d7e4ff}
+.utility-date i{color:#f6c64c}
+.site-header{background:linear-gradient(110deg,#0649b2,#06388f 70%,#082e78);box-shadow:0 8px 24px rgba(0,37,107,.16)}
+.masthead{min-height:104px}
+.brand{gap:15px}
+.brand-mark{width:72px;height:72px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffec9c,#d9aa37 52%,#926318);color:#063a92;border:2px solid #f2d47d;box-shadow:0 0 0 4px rgba(255,255,255,.1),0 6px 18px rgba(0,0,0,.18)}
+.brand-mark:before{width:52px;height:52px;border:1px solid rgba(255,255,255,.48);border-radius:50%;transform:none}
+.brand-mark span{font-size:37px;color:#fff;text-shadow:0 2px 4px #78500b}
+.brand-mark i{width:9px;height:9px;top:8px;left:8px;background:#fff;border-color:#d9aa37}
+.brand-copy strong{font-size:28px;color:#fff}
+.brand-copy small{color:#d4e2ff}
+.masthead-center{display:flex}
+.masthead-kicker{font-size:26px;color:#fff;font-weight:900}
+.masthead-kicker: first-letter{color:#f2c654}
+.masthead-note{font-size:13px;color:#c8dcff}
+.icon-button{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.3)}
+.telegram-cta{background:#fff;color:#06419e;border-radius:24px}
+.nav-shell{background:#073582;border-top:1px solid rgba(255,255,255,.16)}
+.main-nav-bar{min-height:48px}
+.main-nav-bar a{color:#edf3ff;padding:16px 17px}
+.main-nav-bar a:hover,.main-nav-bar a.active{background:rgba(255,255,255,.09)}
+.main-nav-bar a.active:after{background:#f1c24f;height:4px}
+.main-nav-bar .nav-breaking{color:#ffe0e3}
+.breaking-band{background:#fff;border-bottom:1px solid #e9eef7;box-shadow:0 4px 14px rgba(10,40,90,.04)}
+.breaking-inner{min-height:58px;gap:14px}
+.breaking-label{background:#e9001b;border-radius:6px;padding:10px 16px}
+.breaking-headline{font-size:13px;color:#20365a}
+.lead-section{padding-top:20px}
+.section-eyebrow{color:#0b4cb1}
+.eyebrow-line{background:#e4b746}
+.lead-grid{grid-template-columns:minmax(0,1.7fr) minmax(320px,.82fr);gap:20px}
+.lead-image{min-height:370px;border-radius:10px;background-color:#174b96;box-shadow:0 8px 24px rgba(9,38,90,.12)}
+.image-shade{background:linear-gradient(0deg,rgba(0,0,0,.83),rgba(0,0,0,.06) 72%)}
+.lead-label{background:#0649b2;color:#fff;border-radius:5px}
+.lead-content h1{font-size:clamp(25px,2.5vw,39px);line-height:1.65}
+.lead-content p{font-size:14px}
+.lead-underbar{border-radius:0 0 10px 10px;background:#fff}
+.latest-panel,.market-card,.most-read-card{background:#fff;border:1px solid #e9eef6;border-radius:10px;box-shadow:var(--shadow)}
+.panel-heading{padding:19px 20px 14px;border-bottom:1px solid #edf1f7}
+.panel-heading h2,.section-heading h2{color:#112b57}
+.panel-kicker{color:#0b4db0}
+.text-link{color:#0a4eb1}
+.latest-list{padding:0 18px}
+.lw-item,.latest-item{border-bottom:1px solid #edf1f7}
+.latest-thumb{border-radius:7px}
+.category-rail-section{padding-top:26px}
+.category-tile{border:1px solid #e6edf7;background:#fff;border-radius:10px;box-shadow:0 3px 12px rgba(13,49,105,.04)}
+.category-tile:hover{border-color:#d8b04d;box-shadow:var(--shadow-hover)}
+.category-icon{background:#eaf1ff;color:#0b4cae;border-radius:10px}
+.category-icon.economy{background:#fff5d9;color:#b98417}
+.category-icon.politics{background:#e9efff;color:#154aa3}
+.category-icon.world{background:#e4f4ff;color:#087ba7}
+.category-icon.society{background:#e8f7ef;color:#16845a}
+.category-icon.culture{background:#fff0e7;color:#c56b26}
+.category-icon.tech{background:#eeeaff;color:#6552bd}
+.category-icon.video{background:#ffe9ec;color:#d72d46}
+.editorial-sections{gap:22px}
+.content-block,.market-card,.most-read-card{border-radius:10px}
+.market-symbol{background:#eaf1ff;color:#0750b7}
+.market-empty{background:#f5f8fd;border-color:#dbe5f5}
+.social-promo{background:#eaf4ff;border-color:#d6e8ff}
+.site-footer{background:#062b6d;border-top:4px solid #e2b548}
+.footer-brand .brand-mark{width:44px;height:44px}
+.copyright{color:#b5c9ee}
+@media(max-width:1100px){.wrap{width:calc(100% - 36px)}.masthead-kicker{font-size:22px}.lead-grid{grid-template-columns:minmax(0,1.3fr) minmax(285px,.9fr)}}
+@media(max-width:760px){.wrap{width:calc(100% - 24px)}.masthead{min-height:78px}.brand-mark{width:43px;height:43px}.brand-mark:before{width:31px;height:31px}.brand-mark span{font-size:25px}.brand-copy strong{font-size:20px}.masthead-kicker{font-size:18px}.masthead-note{display:none}.lead-grid{grid-template-columns:1fr}.lead-image{min-height:360px}.breaking-inner{min-height:48px}.main-nav-bar{padding-inline:12px}}
