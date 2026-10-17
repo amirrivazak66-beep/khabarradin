@@ -60,20 +60,45 @@ async function refreshNews(){
   const marketUpdatedEl = document.getElementById('marketUpdated');
   if (marketUpdatedEl) marketUpdatedEl.textContent = 'آخرین بروزرسانی: ' + KR.relTime(new Date());
 
-  // ---- HERO: جدیدترین خبر کلی ----
-  const top = all[0];
-  document.getElementById('heroTitle').textContent = top.title;
-  document.getElementById('heroDesc').textContent = top.desc ? top.desc.slice(0, 200) : '';
-  document.getElementById('heroTime').textContent = KR.relTime(top.pubDate);
-  document.getElementById('heroDate').textContent = KR.faDate(top.pubDate);
-  document.getElementById('heroTags').innerHTML = `<span class="tag gold">${top.cat}</span>`;
-  const heroViewsEl = document.getElementById('heroViews');
-  if (heroViewsEl) heroViewsEl.textContent = '—'; // بازدید واقعی نیاز به سیستم شمارش دارد
-  if (top.image){
-    document.getElementById('heroSlide').style.backgroundImage =
-      `linear-gradient(180deg, rgba(10,18,32,.12) 0%, rgba(8,14,26,.6) 55%, rgba(6,10,20,.94) 100%), url('${top.image}')`;
+  // ---- اسلایدهای خبری: سه خبر تازه با گرافیک پویا ----
+  const slides = all.slice(0, 3);
+  let activeSlide = 0;
+  const hero = document.getElementById('heroSlide');
+  const dots = document.getElementById('heroDots');
+  const paintSlide = (index) => {
+    if (!slides.length || !hero) return;
+    activeSlide = (index + slides.length) % slides.length;
+    const item = slides[activeSlide];
+    document.getElementById('heroTitle').textContent = item.title;
+    document.getElementById('heroDesc').textContent = item.desc ? item.desc.slice(0, 190) : 'آخرین جزئیات این خبر را در گزارش خبر رادین بخوانید.';
+    document.getElementById('heroTime').textContent = KR.relTime(item.pubDate);
+    document.getElementById('heroDate').textContent = KR.faDate(item.pubDate);
+    document.getElementById('heroTags').innerHTML = '<span class="tag gold">' + item.cat + '</span><span class="tag">خبر رادین</span>';
+    const imageIndex = document.querySelector('.image-index');
+    if (imageIndex) imageIndex.innerHTML = KR.toFa(String(activeSlide + 1).padStart(2, '0')) + ' <span>/</span> ' + KR.toFa(String(slides.length).padStart(2, '0'));
+    hero.style.backgroundImage = item.image
+      ? 'linear-gradient(180deg,rgba(7,16,31,.05),rgba(7,16,31,.92)),url("' + item.image.replace(/"/g, '%22') + '")'
+      : 'linear-gradient(115deg,rgba(5,23,57,.08),rgba(5,23,57,.22)), radial-gradient(ellipse at 18% 24%,rgba(216,177,78,.78),transparent 22%), radial-gradient(ellipse at 76% 12%,rgba(31,105,204,.85),transparent 30%), linear-gradient(135deg,#071c43 0%,#0c4699 48%,#07162f 100%)';
+    hero.dataset.activeSlide = String(activeSlide);
+    hero.onclick = () => { window.location.href = KR.articleUrl(item); };
+    if (dots) {
+      dots.innerHTML = slides.map((_, i) => '<button type="button" class="slide-dot ' + (i === activeSlide ? 'active' : '') + '" aria-label="رفتن به اسلاید ' + KR.toFa(i + 1) + '" data-slide="' + i + '"></button>').join('');
+      dots.querySelectorAll('[data-slide]').forEach(button => button.addEventListener('click', event => {
+        event.stopPropagation();
+        paintSlide(Number(button.dataset.slide));
+        resetSlideTimer();
+      }));
+    }
+  };
+  paintSlide(0);
+  if (window.radinSlideTimer) clearInterval(window.radinSlideTimer);
+  window.radinSlideTimer = setInterval(() => paintSlide(activeSlide + 1), 7000);
+  window.radinPaintSlide = paintSlide;
+  window.radinResetSlideTimer = () => resetSlideTimer();
+  function resetSlideTimer() {
+    if (window.radinSlideTimer) clearInterval(window.radinSlideTimer);
+    window.radinSlideTimer = setInterval(() => paintSlide(activeSlide + 1), 7000);
   }
-  document.getElementById('heroSlide').onclick = () => { window.location.href = KR.articleUrl(top); };
 
   // ---- آخرین اخبار (ستون راست) ----
   const listEl = document.getElementById('latestNewsList');
