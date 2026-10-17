@@ -458,43 +458,38 @@ a{text-decoration:none; color:inherit;}
       </div>`).join('');
   }
 
-  // ---- News pull + verification report ----
-  let autoPullTimer = null;
-
+  // ---- Server-side RSS ingestion ----
   async function runPullNow(){
     const btn = document.getElementById('pullNowBtn');
     const reportEl = document.getElementById('pullReport');
     btn.disabled = true;
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> در حال دریافت...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> در حال دریافت از سرور...';
     reportEl.innerHTML = '';
-
     try{
-      const reports = await KR.pullAllFeeds();
-      reportEl.innerHTML = reports.map(r => {
-        if (r.ok){
-          return `<div class="pull-report-item ok"><span>✅ دسته «<b>${r.cat}</b>» — ${r.fetched} خبر خونده شد، ${r.inserted} خبر جدید ذخیره شد.</span></div>`;
-        }
-        return `<div class="pull-report-item fail"><span>⚠️ دسته «<b>${r.cat}</b>» — این فید خونده نشد (${r.error || 'خطای نامشخص'}). آدرس RSS را بررسی کنید.</span></div>`;
-      }).join('');
+      const { data, error } = await sb.functions.invoke('rss-ingest', { body: { trigger: 'manual' } });
+      if (error) throw error;
+      const reports = (data?.reports || []).map(r => r.ok
+        ? '<div class="pull-report-item ok">✅ ' + String(r.feed || 'منبع') + ' — ' + Number(r.fetched || 0) + ' خبر دریافت شد؛ برای انتشار در صف بررسی است.</div>'
+        : '<div class="pull-report-item fail">⚠️ ' + String(r.feed || 'منبع') + ' — ' + String(r.error || 'خطای دریافت') + '</div>');
+      reportEl.innerHTML = reports.join('') || '<div class="pull-report-item fail">هیچ فید فعالی ثبت نشده است.</div>';
       document.getElementById('statUpdated').textContent = 'هم‌اکنون';
       await renderRecentNews();
     }catch(e){
-      reportEl.innerHTML = `<div class="pull-report-item fail">خطا در دریافت اخبار: ${e.message}</div>`;
+      reportEl.innerHTML = '<div class="pull-report-item fail">خبرخوان سمت سرور در دسترس نیست. وضعیت پروژه Supabase، استقرار تابع rss-ingest و تنظیمات احراز هویت را بررسی کنید.</div>';
+      console.error('rss-ingest failed', e);
+    }finally{
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
-
-    btn.disabled = false;
-    btn.innerHTML = originalHtml;
   }
-
   document.getElementById('pullNowBtn').addEventListener('click', runPullNow);
 
+  // زمان‌بندی مرورگر فقط تا وقتی این پنل باز است کار می‌کند؛ زمان‌بندی واقعی باید با pg_cron انجام شود.
   document.getElementById('autoPullToggle').addEventListener('change', (e) => {
-    if (autoPullTimer) window.clearInterval(autoPullTimer);
-    if (e.target.checked){
-      // بازه بروزرسانی خودکار = کوتاه‌ترین بازه تنظیم‌شده در بین فیدها (حداقل ۵ دقیقه)
-      const minutes = Math.max(5, Math.min(...feeds.map(f => f.updateIntervalMinutes || 60), 1440));
-      autoPullTimer = window.setInterval(runPullNow, minutes * 60 * 1000);
+    const note = document.getElementById('pullReport');
+    if (e.target.checked) {
+      note.innerHTML = '<div class="pull-report-item fail">این گزینه به‌تنهایی زمان‌بندی دائمی ایجاد نمی‌کند؛ زمان‌بندی سروری pg_cron باید فعال شود.</div>';
     }
   });
 
@@ -526,7 +521,7 @@ a{text-decoration:none; color:inherit;}
     el.querySelectorAll('.unpub-btn').forEach(b => {
       b.addEventListener('click', async () => {
         const newState = b.dataset.pub !== 'true';
-        await sb.from('news_items').update({ published: newState }).eq('id', b.dataset.id);
+        await sb.from('news_items').update({ published: newState, review_status: newState ? 'approved' : 'pending' }).eq('id', b.dataset.id);
         renderRecentNews();
       });
     });

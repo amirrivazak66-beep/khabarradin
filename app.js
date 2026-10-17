@@ -186,14 +186,16 @@
    * so the admin panel can show exactly what was read and stored.
    */
   async function pullAllFeeds(){
-    const feeds = await loadFeeds();
-    const reports = [];
-    for (const feed of feeds){
-      // Sequential on purpose — keeps proxy usage gentle and reports ordered.
-      // eslint-disable-next-line no-await-in-loop
-      reports.push(await pullFeedIntoDb(feed));
-    }
-    return reports;
+    if (!window.sb) throw new Error('Supabase در دسترس نیست');
+    const { data, error } = await window.sb.functions.invoke('rss-ingest', { body: { trigger: 'manual' } });
+    if (error) throw error;
+    return (data?.reports || []).map(r => ({
+      cat: r.feed || 'منبع خبری',
+      fetched: Number(r.fetched || 0),
+      inserted: Number(r.fetched || 0),
+      ok: Boolean(r.ok),
+      error: r.error || null
+    }));
   }
 
   // ---------------------------------------------------------------------
