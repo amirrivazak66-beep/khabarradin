@@ -68,3 +68,25 @@ body{background:#f3f6fb;color:#11264b}
 .copyright{color:#b5c9ee}
 @media(max-width:1100px){.wrap{width:calc(100% - 36px)}.masthead-kicker{font-size:22px}.lead-grid{grid-template-columns:minmax(0,1.3fr) minmax(285px,.9fr)}}
 @media(max-width:760px){.wrap{width:calc(100% - 24px)}.masthead{min-height:78px}.brand-mark{width:43px;height:43px}.brand-mark:before{width:31px;height:31px}.brand-mark span{font-size:25px}.brand-copy strong{font-size:20px}.masthead-kicker{font-size:18px}.masthead-note{display:none}.lead-grid{grid-template-columns:1fr}.lead-image{min-height:360px}.breaking-inner{min-height:48px}.main-nav-bar{padding-inline:12px}}
+
+/* Logo asset and visual prototype market cards */
+.radin-logo{display:block;width:154px;height:auto;max-height:91px;object-fit:contain;flex-shrink:0}
+.footer-logo{width:112px;max-height:70px}
+.brand{gap:16px}
+.market-demo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:16px}
+.market-demo-card{min-width:0;padding:12px 10px;border:1px solid #e5ebf5;border-radius:9px;background:linear-gradient(145deg,#fff,#f7f9fd)}
+.market-demo-top{display:flex;align-items:center;gap:7px;color:#536783;font-size:10px;font-weight:700}
+.market-demo-icon{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;background:#fff2ce;color:#b58420;font-size:12px}
+.market-demo-value{display:block;margin-top:9px;color:#112d60;font-size:16px;font-weight:900;direction:rtl;white-space:nowrap}
+.market-demo-change{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:10px;font-weight:800;color:#17875c}
+.market-demo-change.down{color:#d94150}
+.market-demo-note{font-size:9px;color:#a0a9b8;margin-top:8px}
+.sample-news-label{display:inline-flex;align-items:center;gap:5px;border:1px solid #f1dca1;background:#fff8df;color:#88630c;padding:5px 9px;border-radius:5px;font-size:10px;font-weight:800}
+@media(max-width:760px){.radin-logo{width:106px;max-height:65px}.footer-logo{width:90px}.market-demo-grid{gap:7px}.market-demo-card{padding:10px 8px}.market-demo-value{font-size:14px}}
+
+.prototype-news .info{min-width:0}.prototype-thumb{display:grid;place-items:center;background:linear-gradient(135deg,#d9e7ff,#a8c3f1);color:#154b9f;font-size:22px}
+.prototype-thumb-1{background:linear-gradient(135deg,#e8dcb7,#c5a85d);color:#5d4513}
+.prototype-thumb-2{background:linear-gradient(135deg,#d8efff,#7db9de);color:#17618b}
+.prototype-thumb-3{background:linear-gradient(135deg,#e4f4e9,#9ac6a7);color:#26734a}
+.prototype-thumb-4{background:linear-gradient(135deg,#e6e0ff,#b1a5ec);color:#5143a4}
+.prototype-media .thumb{display:grid;place-items:center;background:linear-gradient(135deg,#d9e7ff,#174b9f);color:white;font-size:23px}
