@@ -76,9 +76,12 @@ async function refreshNews(){
     document.getElementById('heroTags').innerHTML = '<span class="tag gold">' + item.cat + '</span><span class="tag">خبر رادین</span>';
     const imageIndex = document.querySelector('.image-index');
     if (imageIndex) imageIndex.innerHTML = KR.toFa(String(activeSlide + 1).padStart(2, '0')) + ' <span>/</span> ' + KR.toFa(String(slides.length).padStart(2, '0'));
-    hero.style.backgroundImage = item.image
-      ? 'linear-gradient(180deg,rgba(7,16,31,.05),rgba(7,16,31,.92)),url("' + item.image.replace(/"/g, '%22') + '")'
-      : 'linear-gradient(115deg,rgba(5,23,57,.08),rgba(5,23,57,.22)), radial-gradient(ellipse at 18% 24%,rgba(216,177,78,.78),transparent 22%), radial-gradient(ellipse at 76% 12%,rgba(31,105,204,.85),transparent 30%), linear-gradient(135deg,#071c43 0%,#0c4699 48%,#07162f 100%)';
+    // نمایش عکس واقعی خبر در اسلاید؛ اگر RSS عکس نداشته باشد از تصویر جایگزین تحریریه استفاده می‌کنیم.
+    const slideImage = item.image || KR.fallbackImageFor(activeSlide);
+    hero.style.backgroundImage =
+      'linear-gradient(180deg,rgba(7,16,31,.02) 0%,rgba(7,16,31,.18) 35%,rgba(7,16,31,.94) 100%),url("' +
+      String(slideImage).replace(/"/g, '%22') + '")';
+    hero.classList.toggle('has-news-image', Boolean(item.image));
     hero.dataset.activeSlide = String(activeSlide);
     hero.onclick = () => { window.location.href = KR.articleUrl(item); };
     if (dots) {
