@@ -125,3 +125,33 @@ async function refreshNews(){
       <span class="time">${KR.relTime(it.pubDate)}</span>
     </div>`).join('');
 }
+
+/* Prototype fallback content: clearly labelled sample headlines, not real news */
+function renderPrototypeNews(){
+ const host=document.getElementById('latestNewsList');
+ if(!host || host.children.length) return;
+ const samples=[
+  {cat:'اقتصاد',title:'نمونه تیتر اقتصادی؛ خبرهای مهم بازار در این بخش نمایش داده می‌شوند.',time:'نمونه نمایشی'},
+  {cat:'سیاست',title:'نمونه تیتر سیاسی؛ تیتر اصلی و خلاصه خبر در این کارت قرار می‌گیرد.',time:'نمونه نمایشی'},
+  {cat:'بین‌الملل',title:'نمونه خبر بین‌الملل؛ پوشش رویدادهای مهم ایران و جهان.',time:'نمونه نمایشی'},
+  {cat:'جامعه',title:'نمونه خبر اجتماعی؛ خبرهای روز با تصویر و زمان انتشار.',time:'نمونه نمایشی'},
+  {cat:'فناوری',title:'نمونه خبر فناوری؛ تازه‌ترین تحولات دنیای تکنولوژی.',time:'نمونه نمایشی'}
+ ];
+ host.innerHTML=samples.map((n,i)=>'<div class="lw-item prototype-news"><div class="thumb prototype-thumb prototype-thumb-'+i+'"><i class="fa-solid '+['fa-chart-line','fa-landmark','fa-earth-europe','fa-people-group','fa-microchip'][i]+'"></i></div><div class="info"><div class="cat">'+n.cat+'</div><h4>'+n.title+'</h4><span class="time">'+n.time+'</span></div></div>').join('');
+ const status=document.getElementById('feedStatus');
+ if(status) status.innerHTML='<span class="sample-news-label">حالت پیش‌نمایش</span> خبرهای بالا نمونه‌اند؛ با اتصال فید خبر، جایگزین می‌شوند.';
+ const heroTitle=document.getElementById('heroTitle');
+ if(heroTitle && heroTitle.textContent.includes('مهم‌ترین خبرهای روز')){
+  heroTitle.textContent='نمایش نمونهٔ خبر شاخص در صفحهٔ اصلی خبر رادین';
+  document.getElementById('heroDesc').textContent='در نسخهٔ نهایی، تیتر خبر منتخب، خلاصه، تصویر و زمان انتشار از منبع خبر دریافت می‌شود.';
+  document.getElementById('heroTags').innerHTML='<span class="tag gold">نمونهٔ نمایشی</span>';
+  document.getElementById('heroSlide').style.backgroundImage='linear-gradient(135deg,rgba(4,48,125,.15),rgba(3,24,69,.94)),radial-gradient(circle at 72% 24%,#d6b44e 0,#315aa3 26%,#082d72 70%)';
+ }
+ const video=document.getElementById('videoList');
+ if(video && video.querySelector('.media-placeholder')) video.innerHTML='<div class="video-item prototype-media"><div class="thumb"><i class="fa-solid fa-play"></i></div><div class="info"><h4>نمونه ویدئو: جایگاه محتوای تصویری خبر رادین</h4><span class="time">نمونه نمایشی</span></div></div>';
+ const analysis=document.getElementById('analysisList');
+ if(analysis && analysis.querySelector('.media-placeholder')) analysis.innerHTML='<div class="analysis-item-v2 prototype-media"><div class="thumb"><i class="fa-solid fa-book-open"></i></div><div class="info"><h4>نمونه گزارش تحلیلی؛ نمایش تیتر، تصویر و توضیح کوتاه</h4><span class="time">نمونه نمایشی</span></div></div>';
+ const popular=document.getElementById('mostViewedList');
+ if(popular && popular.querySelector('.media-placeholder')) popular.innerHTML='<div class="most-viewed-item"><span class="rank">۱</span><div class="thumb prototype-thumb prototype-thumb-1"></div><h4>نمونه خبر پیشنهادی برای تکمیل ماکت صفحه</h4></div>';
+}
+document.addEventListener('DOMContentLoaded',()=>setTimeout(renderPrototypeNews,900));
