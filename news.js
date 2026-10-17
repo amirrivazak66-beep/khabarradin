@@ -47,11 +47,19 @@
     catLink.href = KR.categoryUrl(cat);
 
     const coverEl = document.getElementById('articleCover');
-    if (image){
-      coverEl.src = image;
-    } else {
-      coverEl.style.display = 'none';
-    }
+    coverEl.style.display = 'block';
+    coverEl.alt = title;
+    coverEl.loading = 'eager';
+    coverEl.referrerPolicy = 'no-referrer';
+    coverEl.src = image || KR.fallbackImageFor(0);
+    coverEl.onerror = () => {
+      if (coverEl.dataset.fallbackApplied === '1') {
+        coverEl.style.display = 'none';
+        return;
+      }
+      coverEl.dataset.fallbackApplied = '1';
+      coverEl.src = KR.fallbackImageFor(0);
+    };
 
     document.getElementById('articleBody').innerHTML =
       `<p>${desc || 'خلاصه‌ای برای این خبر در دسترس نیست.'}</p>`;
