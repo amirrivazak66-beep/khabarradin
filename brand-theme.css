@@ -1,92 +1,35 @@
-/* خبر رادین — homepage visual theme */
-:root{--navy:#073f9f;--navy-2:#0647ad;--gold:#d7ad4c;--red:#ed001b;--paper:#f3f6fb;--ink:#10264c;--line:#e7edf6;--shadow:0 5px 22px rgba(13,49,105,.08);--radius:12px}
-body{background:#f3f6fb;color:#11264b}
-.wrap{width:min(1560px,calc(100% - 56px))}
-.utility-strip{background:#073a91;color:#d7e4ff}
-.utility-date i{color:#f6c64c}
-.site-header{background:linear-gradient(110deg,#0649b2,#06388f 70%,#082e78);box-shadow:0 8px 24px rgba(0,37,107,.16)}
-.masthead{min-height:104px}
-.brand{gap:15px}
-.brand-mark{width:72px;height:72px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffec9c,#d9aa37 52%,#926318);color:#063a92;border:2px solid #f2d47d;box-shadow:0 0 0 4px rgba(255,255,255,.1),0 6px 18px rgba(0,0,0,.18)}
-.brand-mark:before{width:52px;height:52px;border:1px solid rgba(255,255,255,.48);border-radius:50%;transform:none}
-.brand-mark span{font-size:37px;color:#fff;text-shadow:0 2px 4px #78500b}
-.brand-mark i{width:9px;height:9px;top:8px;left:8px;background:#fff;border-color:#d9aa37}
-.brand-copy strong{font-size:28px;color:#fff}
-.brand-copy small{color:#d4e2ff}
-.masthead-center{display:flex}
-.masthead-kicker{font-size:26px;color:#fff;font-weight:900}
-.masthead-kicker: first-letter{color:#f2c654}
-.masthead-note{font-size:13px;color:#c8dcff}
-.icon-button{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.3)}
-.telegram-cta{background:#fff;color:#06419e;border-radius:24px}
-.nav-shell{background:#073582;border-top:1px solid rgba(255,255,255,.16)}
-.main-nav-bar{min-height:48px}
-.main-nav-bar a{color:#edf3ff;padding:16px 17px}
-.main-nav-bar a:hover,.main-nav-bar a.active{background:rgba(255,255,255,.09)}
-.main-nav-bar a.active:after{background:#f1c24f;height:4px}
-.main-nav-bar .nav-breaking{color:#ffe0e3}
-.breaking-band{background:#fff;border-bottom:1px solid #e9eef7;box-shadow:0 4px 14px rgba(10,40,90,.04)}
-.breaking-inner{min-height:58px;gap:14px}
-.breaking-label{background:#e9001b;border-radius:6px;padding:10px 16px}
-.breaking-headline{font-size:13px;color:#20365a}
-.lead-section{padding-top:20px}
-.section-eyebrow{color:#0b4cb1}
-.eyebrow-line{background:#e4b746}
-.lead-grid{grid-template-columns:minmax(0,1.7fr) minmax(320px,.82fr);gap:20px}
-.lead-image{min-height:370px;border-radius:10px;background-color:#174b96;box-shadow:0 8px 24px rgba(9,38,90,.12)}
-.image-shade{background:linear-gradient(0deg,rgba(0,0,0,.83),rgba(0,0,0,.06) 72%)}
-.lead-label{background:#0649b2;color:#fff;border-radius:5px}
-.lead-content h1{font-size:clamp(25px,2.5vw,39px);line-height:1.65}
-.lead-content p{font-size:14px}
-.lead-underbar{border-radius:0 0 10px 10px;background:#fff}
-.latest-panel,.market-card,.most-read-card{background:#fff;border:1px solid #e9eef6;border-radius:10px;box-shadow:var(--shadow)}
-.panel-heading{padding:19px 20px 14px;border-bottom:1px solid #edf1f7}
-.panel-heading h2,.section-heading h2{color:#112b57}
-.panel-kicker{color:#0b4db0}
-.text-link{color:#0a4eb1}
-.latest-list{padding:0 18px}
-.lw-item,.latest-item{border-bottom:1px solid #edf1f7}
-.latest-thumb{border-radius:7px}
-.category-rail-section{padding-top:26px}
-.category-tile{border:1px solid #e6edf7;background:#fff;border-radius:10px;box-shadow:0 3px 12px rgba(13,49,105,.04)}
-.category-tile:hover{border-color:#d8b04d;box-shadow:var(--shadow-hover)}
-.category-icon{background:#eaf1ff;color:#0b4cae;border-radius:10px}
-.category-icon.economy{background:#fff5d9;color:#b98417}
-.category-icon.politics{background:#e9efff;color:#154aa3}
-.category-icon.world{background:#e4f4ff;color:#087ba7}
-.category-icon.society{background:#e8f7ef;color:#16845a}
-.category-icon.culture{background:#fff0e7;color:#c56b26}
-.category-icon.tech{background:#eeeaff;color:#6552bd}
-.category-icon.video{background:#ffe9ec;color:#d72d46}
-.editorial-sections{gap:22px}
-.content-block,.market-card,.most-read-card{border-radius:10px}
-.market-symbol{background:#eaf1ff;color:#0750b7}
-.market-empty{background:#f5f8fd;border-color:#dbe5f5}
-.social-promo{background:#eaf4ff;border-color:#d6e8ff}
-.site-footer{background:#062b6d;border-top:4px solid #e2b548}
-.footer-brand .brand-mark{width:44px;height:44px}
-.copyright{color:#b5c9ee}
-@media(max-width:1100px){.wrap{width:calc(100% - 36px)}.masthead-kicker{font-size:22px}.lead-grid{grid-template-columns:minmax(0,1.3fr) minmax(285px,.9fr)}}
-@media(max-width:760px){.wrap{width:calc(100% - 24px)}.masthead{min-height:78px}.brand-mark{width:43px;height:43px}.brand-mark:before{width:31px;height:31px}.brand-mark span{font-size:25px}.brand-copy strong{font-size:20px}.masthead-kicker{font-size:18px}.masthead-note{display:none}.lead-grid{grid-template-columns:1fr}.lead-image{min-height:360px}.breaking-inner{min-height:48px}.main-nav-bar{padding-inline:12px}}
-
-/* Logo asset and visual prototype market cards */
-.radin-logo{display:block;width:154px;height:auto;max-height:91px;object-fit:contain;flex-shrink:0}
-.footer-logo{width:112px;max-height:70px}
-.brand{gap:16px}
-.market-demo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:16px}
-.market-demo-card{min-width:0;padding:12px 10px;border:1px solid #e5ebf5;border-radius:9px;background:linear-gradient(145deg,#fff,#f7f9fd)}
-.market-demo-top{display:flex;align-items:center;gap:7px;color:#536783;font-size:10px;font-weight:700}
-.market-demo-icon{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;background:#fff2ce;color:#b58420;font-size:12px}
-.market-demo-value{display:block;margin-top:9px;color:#112d60;font-size:16px;font-weight:900;direction:rtl;white-space:nowrap}
-.market-demo-change{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:10px;font-weight:800;color:#17875c}
-.market-demo-change.down{color:#d94150}
-.market-demo-note{font-size:9px;color:#a0a9b8;margin-top:8px}
-.sample-news-label{display:inline-flex;align-items:center;gap:5px;border:1px solid #f1dca1;background:#fff8df;color:#88630c;padding:5px 9px;border-radius:5px;font-size:10px;font-weight:800}
-@media(max-width:760px){.radin-logo{width:106px;max-height:65px}.footer-logo{width:90px}.market-demo-grid{gap:7px}.market-demo-card{padding:10px 8px}.market-demo-value{font-size:14px}}
-
-.prototype-news .info{min-width:0}.prototype-thumb{display:grid;place-items:center;background:linear-gradient(135deg,#d9e7ff,#a8c3f1);color:#154b9f;font-size:22px}
-.prototype-thumb-1{background:linear-gradient(135deg,#e8dcb7,#c5a85d);color:#5d4513}
-.prototype-thumb-2{background:linear-gradient(135deg,#d8efff,#7db9de);color:#17618b}
-.prototype-thumb-3{background:linear-gradient(135deg,#e4f4e9,#9ac6a7);color:#26734a}
-.prototype-thumb-4{background:linear-gradient(135deg,#e6e0ff,#b1a5ec);color:#5143a4}
-.prototype-media .thumb{display:grid;place-items:center;background:linear-gradient(135deg,#d9e7ff,#174b9f);color:white;font-size:23px}
+/* Radin News homepage — reference image 2 */
+:root{--navy:#06398f;--navy2:#052d77;--blue:#064bb8;--gold:#e9bd51;--red:#fa1022;--paper:#f3f7fd;--ink:#102b60;--muted:#7183a4;--line:#dfe8f7;--shadow:0 5px 20px rgba(15,55,125,.09);--radius:12px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{background:var(--paper);color:var(--ink);font-family:'Vazirmatn',Tahoma,sans-serif}
+.wrap{width:min(1580px,calc(100% - 48px))}
+.utility-strip{background:#063581;color:#dce8ff}.utility-date i{color:var(--gold)}
+.site-header{background:radial-gradient(ellipse at 50% 0,#1253b8 0,#063d9c 48%,#052e78 100%);box-shadow:0 8px 22px #082f7426;overflow:hidden}
+.site-header:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.13;background-image:radial-gradient(circle,#65a9ff 1px,transparent 1.5px);background-size:13px 13px;mask-image:linear-gradient(90deg,transparent,#000 30%,#000 70%,transparent)}
+.masthead{position:relative;min-height:116px;display:grid;grid-template-columns:1fr auto 1fr;gap:20px}
+.brand{grid-column:2;grid-row:1;justify-self:center;gap:0;display:flex;align-items:center}
+.radin-logo{width:190px;height:104px;object-fit:contain;display:block;filter:drop-shadow(0 4px 9px #001d5c66)}
+.brand-copy{display:none}.masthead-center{grid-column:1;grid-row:1;display:flex;align-items:center;justify-content:flex-start;gap:8px;flex-wrap:wrap}
+.masthead-kicker{font-size:22px;font-weight:900;color:white}.masthead-note{font-size:12px;color:#c9ddff}
+.masthead-actions{grid-column:3;grid-row:1;display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.icon-button{border:1px solid #ffffff45;background:#ffffff12;color:#fff;border-radius:50%;width:36px;height:36px}.telegram-cta{background:#fff;color:#06429d;border-radius:20px}
+.nav-shell{background:#052c75;border-top:1px solid #ffffff20}.main-nav-bar{min-height:48px;display:flex;justify-content:center;gap:2px;overflow-x:auto}
+.main-nav-bar a{color:#fff;padding:15px 16px;font-size:13px;font-weight:800;white-space:nowrap}.main-nav-bar a:hover,.main-nav-bar a.active{background:#ffffff12;color:#ffdc77}.main-nav-bar a.active:after{height:4px;background:var(--gold)}
+.breaking-band{background:#fff;border-bottom:1px solid #e4ebf6;box-shadow:0 3px 12px #123d7b0b}.breaking-inner{min-height:58px;gap:15px}
+.breaking-label{background:linear-gradient(120deg,#f0cb69,#dcae42);color:#12336b;border-radius:10px;padding:11px 18px;font-weight:900}.breaking-headline{color:#183568;font-weight:700}
+.lead-section{padding-top:16px}.lead-grid{grid-template-columns:minmax(0,1.85fr) minmax(300px,.92fr);gap:16px}
+.lead-image{min-height:355px;border-radius:12px;overflow:hidden;background-color:#063d91;box-shadow:var(--shadow)}.lead-image:after{background:linear-gradient(0deg,#001638ed 0%,#0016381c 70%)}
+.lead-content h1{font-size:clamp(24px,2.35vw,38px);line-height:1.6;font-weight:900}.lead-content p{font-size:14px;line-height:1.9}.lead-label{background:#0751c1;border-radius:18px;padding:7px 13px}
+.lead-underbar{background:#fff;border:1px solid var(--line);border-radius:0 0 12px 12px}
+.latest-panel,.market-card,.most-read-card,.content-block,.category-tile{background:#fff;border:1px solid #e4ebf6;border-radius:12px;box-shadow:var(--shadow)}
+.panel-heading,.section-heading{padding:15px 17px;border-bottom:1px solid #e9eff8}.panel-heading h2,.section-heading h2{color:#0b2f6e;font-size:17px}
+.panel-kicker,.section-eyebrow{color:#0750b5}.text-link{color:#0750b5}.latest-list{padding:0 14px}.lw-item,.latest-item{border-bottom:1px solid #edf1f8;padding-block:12px}.latest-thumb{border-radius:8px}
+.category-rail-section{padding-top:22px}.category-tile{padding:15px;gap:10px}.category-icon{background:#eaf1ff;color:#084db4;border-radius:10px}
+.category-icon.economy{background:#fff3d4;color:#a97814}.category-icon.politics{background:#e8efff;color:#174da5}.category-icon.world{background:#e4f5ff;color:#117aa5}.category-icon.society{background:#e7f7ee;color:#16845a}.category-icon.culture{background:#fff0e5;color:#c36c25}.category-icon.tech{background:#eeeaff;color:#6650bd}.category-icon.video{background:#ffe9ec;color:#d72d46}
+.editorial-sections{gap:18px}.market-card{padding:16px}.market-card-head{display:flex;align-items:center;gap:10px;padding:15px 16px;margin:-16px -16px 12px;background:linear-gradient(110deg,#064ab3,#052d78);border-radius:11px 11px 0 0;color:white}
+.market-card-head h2{margin:0;color:#fff}.market-symbol{background:#ffffff20;color:#ffda6e}.market-demo-grid{display:flex;flex-direction:column;gap:0}
+.stat-card-v2{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #e9eff7}.stat-card-v2:last-child{border-bottom:0}
+.sc-head{display:contents}.sc-icon{grid-column:3;grid-row:1;width:30px;height:30px;border-radius:50%;display:grid;place-items:center}.sc-name{grid-column:2;grid-row:1;font-size:12px;font-weight:800;color:#17376f}
+.sc-value,.sc-v{grid-column:1;grid-row:1;font-size:12px;font-weight:900;color:#17376f}.sc-change,.sc-chg{display:none}.market-disclaimer{font-size:10px;line-height:1.8;color:#7b8ba7}.market-foot{font-size:10px;color:#9aa7bc;padding-top:10px}.stat-card-v2 .sc-v{font-size:12px}
+.social-promo{background:linear-gradient(135deg,#0b4eb3,#062e79);border:0;color:white;border-radius:12px}.site-footer{background:#052b70;border-top:4px solid var(--gold)}.footer-brand .brand-mark{display:none}.footer-logo{width:112px;height:66px;object-fit:contain}.copyright{color:#b5c9ee}
+@media(max-width:1000px){.wrap{width:calc(100% - 30px)}.masthead{grid-template-columns:1fr auto 1fr}.masthead-kicker{font-size:17px}.radin-logo{width:150px}.lead-grid{grid-template-columns:minmax(0,1.4fr) minmax(260px,.9fr)}.main-nav-bar a{padding:14px 10px}}
+@media(max-width:720px){.wrap{width:calc(100% - 20px)}.masthead{min-height:88px;grid-template-columns:1fr auto;gap:5px}.brand{grid-column:2;grid-row:1}.radin-logo{width:108px;height:78px}.masthead-center{grid-column:1;grid-row:1}.masthead-kicker{font-size:14px}.masthead-note{display:none}.masthead-actions{display:none}.main-nav-bar{justify-content:flex-start}.main-nav-bar a{font-size:11px;padding:13px 10px}.breaking-inner{min-height:48px}.lead-grid{grid-template-columns:1fr}.lead-image{min-height:330px}.latest-panel{order:2}.lead-content h1{font-size:24px}.market-card{margin-top:12px}.stat-card-v2{padding:9px 0}}
