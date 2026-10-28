@@ -262,7 +262,25 @@ a{text-decoration:none; color:inherit;}
         <div class="panel">
           <h3>وضعیت اتصال</h3>
           <p class="sub" id="botConnectionStatus">برای بررسی وضعیت، ابتدا تنظیمات را بارگذاری کن.</p>
-          <div class="notice">این بخش فعلاً وضعیت ذخیره تنظیمات را نشان می‌دهد. فرمان‌های تأیید/رد و انتشار مستقیم در تلگرام هنوز باید در وب‌هوک پیاده‌سازی شوند.</div>
+          <div class="notice">این بخش فعلاً وضعیت ذخیره تنظیمات را نشان می‌دهد. اتصال خواندن کانال‌های تلگرام، بازنویسی هوشمند، ساخت گرافیک و انتشار مستقیم هنوز نیازمند تکمیل سرویس سمت سرور و کلیدهای امن است.</div>
+        </div>
+        <div class="panel">
+          <h3>تنظیمات تحریریه هوشمند</h3>
+          <p class="sub">این گزینه‌ها سیاست تحریریه را ذخیره می‌کنند. برای اجرای واقعی بازنویسی و تولید تصویر، سرویس پردازش باید به آن‌ها متصل شود.</p>
+          <label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="rewriteEnabled" type="checkbox" checked> بازنویسی خبر به لحن خبر رادین</label>
+          <div class="field"><label for="reviewMode">نیاز به تأیید مدیر</label><select id="reviewMode" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit"><option value="sensitive">فقط خبرهای حساس (پیشنهادی)</option><option value="all">تمام خبرها</option><option value="none">بدون تأیید (فعلاً اجرا نمی‌شود)</option></select></div>
+          <div class="field"><label for="imageMode">روش تصویر و گرافیک</label><select id="imageMode" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit"><option value="template">قالب گرافیکی خبر رادین</option><option value="ai">تولید تصویر با هوش مصنوعی</option><option value="original">استفاده از تصویر منبع</option></select></div>
+          <div class="field"><label for="brandVoice">دستورالعمل لحن و بازنویسی</label><textarea id="brandVoice" rows="4" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit">خبر رادین: فارسی روان، دقیق، بی‌طرف در بازنویسی خبر، تیتر کوتاه و روشن؛ بدون افزودن ادعای تأییدنشده.</textarea></div>
+          <div class="row-actions"><button class="btn-primary" id="saveEditorialSettingsBtn">ذخیره تنظیمات تحریریه</button></div>
+          <div class="save-msg" id="editorialSaveMsg"></div><div class="login-error" id="editorialSaveError" style="display:none"></div>
+        </div>
+        <div class="panel">
+          <h3>منابع خبری</h3>
+          <p class="sub">فعلاً می‌توانی منابع RSS و وب‌سایت را ثبت کنی. برای خواندن خودکار تاریخچه و پست‌های کانال تلگرام، اتصال اختصاصی تلگرام (MTProto) لازم است؛ ربات معمولی به‌تنهایی تاریخچه کانال‌های دلخواه را نمی‌خواند.</p>
+          <div id="sourceRows">در حال بارگذاری منابع...</div>
+          <div class="row-actions"><button class="btn-secondary" id="addSourceBtn">افزودن منبع</button><button class="btn-primary" id="saveSourcesBtn">ذخیره منابع</button></div>
+          <div class="save-msg" id="sourcesSaveMsg"></div><div class="login-error" id="sourcesSaveError" style="display:none"></div>
+        </div>
         </div>
       </section>
 
@@ -301,6 +319,8 @@ a{text-decoration:none; color:inherit;}
     loadFeedsFromDb();
     renderRecentNews();
     loadBotSettings();
+    loadEditorialSettings();
+    loadSources();
   }
 
   function showLoginError(msg){
@@ -600,6 +620,75 @@ a{text-decoration:none; color:inherit;}
     msg.textContent = 'تنظیمات در دیتابیس ذخیره شد؛ زمان‌بندی و انتشار هنوز به این مقادیر متصل نیستند.';
     msg.style.display = 'block';
     document.getElementById('botConnectionStatus').textContent = 'آخرین ذخیره تنظیمات: ' + new Date().toLocaleString('fa-IR');
+  });
+
+  // ---- Editorial settings ----
+  async function loadEditorialSettings(){
+    const {data,error}=await sb.from('bot_settings').select('*').eq('id','main').maybeSingle();
+    if(error){ const e=document.getElementById('editorialSaveError');e.textContent='خطا در بارگذاری: '+error.message;e.style.display='block';return; }
+    if(!data)return;
+    document.getElementById('rewriteEnabled').checked=data.rewrite_enabled!==false;
+    document.getElementById('reviewMode').value=data.default_review_mode||'sensitive';
+    document.getElementById('imageMode').value=data.image_mode||'template';
+    document.getElementById('brandVoice').value=data.brand_voice||'خبر رادین: فارسی روان، دقیق، بی‌طرف در بازنویسی خبر، تیتر کوتاه و روشن؛ بدون افزودن ادعای تأییدنشده.';
+  }
+  document.getElementById('saveEditorialSettingsBtn').addEventListener('click',async()=>{
+    const b=document.getElementById('saveEditorialSettingsBtn'), ok=document.getElementById('editorialSaveMsg'), er=document.getElementById('editorialSaveError');
+    ok.style.display='none';er.style.display='none';b.disabled=true;
+    const {error}=await sb.from('bot_settings').update({
+      rewrite_enabled:document.getElementById('rewriteEnabled').checked,
+      default_review_mode:document.getElementById('reviewMode').value,
+      image_mode:document.getElementById('imageMode').value,
+      brand_voice:document.getElementById('brandVoice').value.trim(),
+      updated_at:new Date().toISOString(),updated_by:currentEmail
+    }).eq('id','main');
+    b.disabled=false;
+    if(error){er.textContent='ذخیره ناموفق بود: '+error.message;er.style.display='block';return;}
+    ok.textContent='سیاست تحریریه ذخیره شد؛ اجرای هوشمند باید به سرویس پردازش متصل شود.';ok.style.display='block';
+  });
+
+  // ---- Source manager (RSS / websites / Telegram source records) ----
+  let sources=[], deletedSourceIds=[];
+  function renderSources(){
+    const wrap=document.getElementById('sourceRows');wrap.innerHTML='';
+    if(!sources.length){wrap.textContent='هنوز منبعی ثبت نشده است.';return;}
+    sources.forEach((src,i)=>{
+      const row=document.createElement('div');row.className='feed-row';row.style.flexWrap='wrap';
+      row.innerHTML=`<select data-si="${i}" data-sf="source_type" style="max-width:130px;border:1px solid #e3e7ee;border-radius:8px;padding:9px;font-family:inherit"><option value="rss" ${src.source_type==='rss'?'selected':''}>RSS</option><option value="website" ${src.source_type==='website'?'selected':''}>وب‌سایت</option><option value="telegram" ${src.source_type==='telegram'?'selected':''}>کانال تلگرام*</option></select>
+      <input data-si="${i}" data-sf="name" value="${String(src.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="نام منبع" style="max-width:150px">
+      <input data-si="${i}" data-sf="source_url" value="${String(src.source_url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="آدرس RSS / سایت / @channel" style="min-width:220px">
+      <input data-si="${i}" data-sf="category" value="${String(src.category||'عمومی').replace(/"/g,'&quot;')}" placeholder="دسته" style="max-width:100px">
+      <input data-si="${i}" data-sf="fetch_interval_minutes" type="number" min="5" max="1440" value="${src.fetch_interval_minutes||15}" title="بازه بررسی" style="max-width:80px">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px"><input data-si="${i}" data-sf="enabled" type="checkbox" ${src.enabled!==false?'checked':''}> فعال</label>
+      <button data-sremove="${i}" title="حذف منبع">✕</button>`;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll('[data-sremove]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.sremove);if(sources[i].id)deletedSourceIds.push(sources[i].id);sources.splice(i,1);renderSources();}));
+    wrap.querySelectorAll('[data-si]').forEach(el=>el.addEventListener(el.type==='checkbox'?'change':'input',()=>{
+      const src=sources[Number(el.dataset.si)],field=el.dataset.sf;
+      src[field]=el.type==='checkbox'?el.checked:el.type==='number'?Number(el.value):el.value;
+    }));
+  }
+  async function loadSources(){
+    const {data,error}=await sb.from('news_sources').select('*').order('created_at');
+    if(error){const el=document.getElementById('sourcesSaveError');el.textContent='خطا در بارگذاری منابع: '+error.message;el.style.display='block';return;}
+    sources=(data||[]);deletedSourceIds=[];renderSources();
+  }
+  document.getElementById('addSourceBtn').addEventListener('click',()=>{sources.push({id:null,source_type:'rss',name:'منبع جدید',source_url:'',category:'عمومی',enabled:true,fetch_interval_minutes:15,include_images:true});renderSources();});
+  document.getElementById('saveSourcesBtn').addEventListener('click',async()=>{
+    const b=document.getElementById('saveSourcesBtn'),ok=document.getElementById('sourcesSaveMsg'),er=document.getElementById('sourcesSaveError');
+    ok.style.display='none';er.style.display='none';b.disabled=true;
+    try{
+      for(const id of deletedSourceIds){const {error}=await sb.from('news_sources').delete().eq('id',id);if(error)throw error;}
+      for(const src of sources){
+        if(!src.name?.trim()||!src.source_url?.trim())continue;
+        const payload={source_type:src.source_type,name:src.name.trim(),source_url:src.source_url.trim(),category:src.category||'عمومی',enabled:src.enabled!==false,fetch_interval_minutes:Math.max(5,Math.min(1440,Number(src.fetch_interval_minutes)||15)),include_images:src.include_images!==false,updated_at:new Date().toISOString()};
+        if(src.id){const {error}=await sb.from('news_sources').update(payload).eq('id',src.id);if(error)throw error;}
+        else{const {data,error}=await sb.from('news_sources').insert(payload).select().single();if(error)throw error;src.id=data.id;}
+      }
+      deletedSourceIds=[];ok.textContent='منابع در دیتابیس ذخیره شدند. اجرای واقعی دریافت هر نوع منبع باید در پردازشگر سرور فعال شود.';ok.style.display='block';await loadSources();
+    }catch(e){er.textContent='ذخیره منابع ناموفق بود: '+e.message;er.style.display='block';}
+    b.disabled=false;
   });
 
   // ---- Change password (real Supabase auth) ----
