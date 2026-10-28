@@ -41,23 +41,20 @@ async function loadQueue(){
 }
 async function makeForNews(item,btn){
   if(!item)return;
-  btn.disabled=true;btn.textContent='در حال ساخت...';
+  btn.disabled=true;btn.textContent='در حال دریافت عکس و ساخت قالب روی سرور...';
   try{
-    activeItem=item;$('title').value=item.title||'';$('category').value=[...$('category').options].some(o=>o.value===item.category)?item.category:'خبر فوری';
-    $('source').value=item.source_name||'';photoImg=null;
-    if(item.image_url){try{photoImg=await loadRemoteImage(item.image_url)}catch(_){photoImg=null}}
-    if(!photoImg) throw new Error('عکس واقعی این خبر در مرورگر قابل دریافت نیست. تصویر ناقص ذخیره نشد؛ ابتدا لینک عکس مستقیم یا فایل عکس اصلی را اضافه کنید.');
-    render();
-    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('ساخت PNG ناموفق بود')),'image/png'));
-    const path='news/'+item.id+'.png';
-    const {error:uploadError}=await sb.storage.from('radin-graphics').upload(path,blob,{contentType:'image/png',upsert:true});
-    if(uploadError)throw uploadError;
-    const {data:pub}=sb.storage.from('radin-graphics').getPublicUrl(path);
-    const {error:updateError}=await sb.from('news_items').update({graphic_image_url:pub.publicUrl,original_image_url:item.image_url||null,updated_at:new Date().toISOString()}).eq('id',item.id);
-    if(updateError)throw updateError;
-    btn.textContent='تصویر ذخیره شد ✓';btn.disabled=false;
-    $('status').textContent='تصویر گرافیکی در فضای ابری ذخیره شد و به خبر متصل شد. برای انتشار، از پنل مدیریت خبر را جداگانه تأیید کن.';
-  }catch(e){btn.disabled=false;btn.textContent='تلاش دوباره';$('status').textContent='خطا در ذخیره تصویر: '+(e.message||e)}
+    activeItem=item;
+    const {data,error}=await sb.functions.invoke('radin-graphic-worker',{body:{item_id:item.id}});
+    if(error)throw new Error(error.message||'ارتباط با موتور گرافیک ناموفق بود');
+    const result=(data?.results||[]).find(x=>x.id===item.id);
+    if(!data?.ok || !result?.ok)throw new Error(result?.error||data?.error||'تصویر ساخته نشد؛ گزارش موتور گرافیک را بررسی کنید.');
+    btn.textContent='تصویر با موفقیت ذخیره شد ✓';
+    $('status').textContent='تصویر از سمت سرور ساخته و به خبر متصل شد. اکنون پیش‌نمایش خبر را از فضای ابری بارگذاری کنید.';
+    await loadQueue();
+  }catch(e){
+    btn.disabled=false;btn.textContent='تلاش دوباره';
+    $('status').textContent='خطا در ساخت تصویر: '+(e.message||e);
+  }
 }
 function loadRemoteImage(url){return new Promise((resolve,reject)=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('این منبع اجازه پردازش عکس در مرورگر را نمی‌دهد؛ می‌توانی عکس را دستی بارگذاری کنی.'));im.src=url})}
 $('loadQueue').addEventListener('click',loadQueue);
