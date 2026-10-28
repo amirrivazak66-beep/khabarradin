@@ -1,14 +1,18 @@
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>استودیو گرافیک خبر رادین</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{--blue:#2f4eaa;--navy:#10254b;--gold:#c9a34b;--ink:#18253a}*{box-sizing:border-box}body{margin:0;background:#edf1f7;color:var(--ink);font-family:Vazirmatn,Tahoma,sans-serif}.wrap{max-width:1150px;margin:auto;padding:22px}.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}.head h1{font-size:22px;margin:0}.tag{background:#e4ebff;color:#2348a0;padding:7px 12px;border-radius:30px;font-size:12px}.layout{display:grid;grid-template-columns:340px 1fr;gap:20px}.panel{background:#fff;border-radius:16px;padding:18px;box-shadow:0 8px 24px #132a4912}.panel h2{font-size:16px;margin:0 0 15px}.field{margin:0 0 14px}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}.field input,.field textarea,.field select{width:100%;font:inherit;font-size:13px;padding:10px;border:1px solid #d9e0ed;border-radius:9px;background:#fff}.field textarea{min-height:95px;resize:vertical}.hint{font-size:11px;color:#75839a;line-height:1.9}.btn{font:inherit;font-size:13px;font-weight:800;border:0;border-radius:10px;padding:12px 14px;cursor:pointer}.primary{background:var(--blue);color:white;width:100%}.secondary{background:#edf1fa;color:#1c376f}.actions{display:flex;gap:8px;margin-top:10px}.actions .btn{flex:1}.preview{display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:6px}.canvas-wrap{width:min(100%,520px);background:#fff;border-radius:14px;box-shadow:0 8px 30px #0a14201c;padding:8px}.canvas-wrap canvas{display:block;width:100%;height:auto;border-radius:8px}.status{font-size:12px;margin-top:10px;color:#52627a;line-height:1.8}@media(max-width:800px){.layout{grid-template-columns:1fr}.wrap{padding:12px}.head h1{font-size:17px}}
 </style></head>
 <body><main class="wrap">
-<header class="head"><h1>استودیو گرافیک خبر رادین</h1><span class="tag">رایگان · بدون API تصویر</span></header>
+<header class="head"><h1>استودیو گرافیک خبر رادین</h1><span class="tag">نسخه اصلاح‌شده · 29 اکتبر 2026</span></header>
 <div class="layout"><section class="panel">
 <h2>ساخت تصویر خبری</h2>
 <div class="field"><label>پردازش خودکار خبرهای در انتظار</label><div class="actions"><button class="btn secondary" id="loadQueue" type="button">بارگذاری خبرها</button><button class="btn secondary" id="makeAll" type="button">ساخت تصاویر همه خبرها</button></div><div class="hint">خبرهای دریافت‌شده از RSS را از دیتابیس می‌خواند، قالب خبری می‌سازد و تصویر را در فضای ابری ذخیره می‌کند. انتشار تلگرام همچنان دستی می‌ماند.</div><div id="queue" class="status">برای شروع، خبرهای در انتظار را بارگذاری کنید.</div></div>
