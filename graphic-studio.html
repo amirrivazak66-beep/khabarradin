@@ -58,6 +58,13 @@ async function makeForNews(item,btn){
     btn.textContent='تصویر با موفقیت ذخیره شد ✓';
     $('status').textContent='تصویر گرافیکی ذخیره شد و پیش‌نمایش واقعی نمایش داده می‌شود.';
     await loadQueue();
+    const refreshed=pendingQueue.find(x=>x.id===item.id);
+    if(refreshed){
+      activeItem=refreshed;
+      showSavedGraphic(refreshed.graphic_image_url);
+      $('title').value=refreshed.title||item.title||'';
+      $('source').value=refreshed.source_name||item.source_name||'';
+    }
   }catch(e){
     btn.disabled=false;btn.textContent='تلاش دوباره';
     $('status').textContent='خطا در ساخت تصویر: '+(e.message||e);
