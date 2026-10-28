@@ -240,8 +240,8 @@ a{text-decoration:none; color:inherit;}
         </div>
 
         <div class="panel">
-          <h3>آخرین خبرهای ذخیره‌شده</h3>
-          <p class="sub">همین لیست، محتوایی هست که الان روی صفحه اصلی سایت نمایش داده می‌شه.</p>
+          <h3>صف بررسی و انتشار در تلگرام</h3>
+          <p class="sub">خبرهای دریافت‌شده ابتدا در صف بررسی قرار می‌گیرند. فقط با زدن «تأیید و انتشار در تلگرام» به کانال فرستاده می‌شوند؛ رد خبر نیز آن را از صف خارج می‌کند.</p>
           <div id="recentNewsList">در حال بارگذاری...</div>
         </div>
       </section>
@@ -537,34 +537,67 @@ a{text-decoration:none; color:inherit;}
 
   async function renderRecentNews(){
     const el = document.getElementById('recentNewsList');
-    const { data, error } = await sb
-      .from('news_items')
-      .select('id,category,title,image_url,pub_date,published')
-      .order('pub_date', { ascending: false })
-      .limit(15);
-
+    const { data, error } = await sb.from('news_items')
+      .select('id,category,title,image_url,pub_date,published,review_status,source_url')
+      .order('pub_date', { ascending: false }).limit(30);
     if (error){
-      el.innerHTML = `<p style="color:#c94b4b; font-size:13px;">خطا در بارگذاری: ${error.message}</p>`;
+      el.innerHTML = `<p style="color:#c94b4b;font-size:13px;">خطا در بارگذاری: ${error.message}</p>`;
       return;
     }
     if (!data || data.length === 0){
-      el.innerHTML = '<p style="font-size:12.5px; color:#aab4c2;">هنوز خبری دریافت نشده — روی «دریافت اخبار از RSS» بزنید.</p>';
+      el.innerHTML = '<p style="font-size:12.5px;color:#aab4c2;">هنوز خبری دریافت نشده است.</p>';
       return;
     }
-    el.innerHTML = data.map(item => `
-      <div class="recent-news-item">
-        <div class="thumb" style="background-image:url('${item.image_url || ''}')"></div>
-        <span class="cat-tag">${item.category}</span>
-        <span class="title">${item.title}</span>
-        <span class="time">${KR.relTime(new Date(item.pub_date))}</span>
-        <button class="unpub-btn" data-id="${item.id}" data-pub="${item.published}">${item.published ? 'عدم انتشار' : 'انتشار'}</button>
-      </div>`).join('');
-
-    el.querySelectorAll('.unpub-btn').forEach(b => {
-      b.addEventListener('click', async () => {
-        const newState = b.dataset.pub !== 'true';
-        await sb.from('news_items').update({ published: newState, review_status: newState ? 'approved' : 'pending' }).eq('id', b.dataset.id);
-        renderRecentNews();
+    const pending = data.filter(item => !item.published && item.review_status !== 'rejected');
+    const published = data.filter(item => item.published);
+    el.innerHTML = `
+      <h4 style="margin:8px 0 12px;">صف بررسی (${pending.length})</h4>
+      ${pending.length ? pending.map(item => `
+        <div class="recent-news-item">
+          <div class="thumb" style="background-image:url('${item.image_url || ''}')"></div>
+          <span class="cat-tag">${item.category || 'عمومی'}</span>
+          <span class="title">${item.title || 'بدون عنوان'}</span>
+          <span class="time">${KR.relTime(new Date(item.pub_date))}</span>
+          <button class="unpub-btn" data-action="publish" data-id="${item.id}">تأیید و انتشار در تلگرام</button>
+          <button class="unpub-btn" data-action="reject" data-id="${item.id}">رد خبر</button>
+        </div>`).join('') : '<p style="color:#8993a3;font-size:13px;">خبر تأییدنشده‌ای در این فهرست نیست.</p>'}
+      <h4 style="margin:22px 0 12px;">آخرین خبرهای منتشرشده (${published.length})</h4>
+      ${published.slice(0,8).map(item => `
+        <div class="recent-news-item">
+          <div class="thumb" style="background-image:url('${item.image_url || ''}')"></div>
+          <span class="cat-tag">${item.category || 'عمومی'}</span>
+          <span class="title">${item.title || 'بدون عنوان'}</span>
+          <span class="time">${KR.relTime(new Date(item.pub_date))}</span>
+          <span class="cat-tag">منتشرشده</span>
+        </div>`).join('')}
+    `;
+    el.querySelectorAll('button[data-action]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const action = button.dataset.action;
+        const id = button.dataset.id;
+        const label = action === 'publish' ? 'تأیید و انتشار این خبر در کانال تلگرام' : 'رد این خبر';
+        if (!confirm(label + '؟')) return;
+        button.disabled = true;
+        button.textContent = 'در حال انجام...';
+        const { data: sessionData } = await sb.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) {
+          alert('نشست ورود معتبر نیست؛ دوباره وارد پنل شوید.');
+          await renderRecentNews();
+          return;
+        }
+        try {
+          const { data: result, error: invokeError } = await sb.functions.invoke('radin-publish-news', {
+            body: { id, action }, headers: { Authorization: 'Bearer ' + token }
+          });
+          if (invokeError) throw invokeError;
+          if (!result?.ok) throw new Error(result?.error || 'عملیات انجام نشد');
+          alert(action === 'publish' ? 'خبر در تلگرام منتشر شد.' : 'خبر رد شد.');
+          await renderRecentNews();
+        } catch (err) {
+          alert('عملیات ناموفق بود: ' + (err?.message || 'خطای نامشخص'));
+          await renderRecentNews();
+        }
       });
     });
   }
