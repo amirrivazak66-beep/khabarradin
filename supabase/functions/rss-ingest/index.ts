@@ -30,9 +30,15 @@ function parseItems(xml: string, limit: number) {
     if (!link) link = b.match(/<link\b[^>]*href=["']([^"']+)["'][^>]*\/?\s*>/i)?.[1] || "";
     const description = tag(b, "encoded") || tag(b, "description") || tag(b, "summary") || tag(b, "content");
     const dateText = tag(b, "pubDate") || tag(b, "published") || tag(b, "updated") || tag(b, "date");
+    // RSS image extraction: enclosure, media:content/thumbnail, Atom links,
+    // then HTML inside description/content:encoded (including CDATA).
     const rawImage = b.match(/<enclosure\b[^>]*url=["']([^"']+)["']/i)?.[1]
-      || b.match(/<media:content\b[^>]*url=["']([^"']+)["']/i)?.[1]
-      || b.match(/<img\b[^>]*src=["']([^"']+)["']/i)?.[1] || "";
+      || b.match(/<enclosure\b[^>]*url=["']([^"']+)["']/i)?.[1]
+      || b.match(/<(?:media:content|media:thumbnail|media:group)\b[^>]*url=["']([^"']+)["']/i)?.[1]
+      || b.match(/<link\b[^>]*rel=["']enclosure["'][^>]*href=["']([^"']+)["']/i)?.[1]
+      || b.match(/<img\b[^>]*src=["']([^"']+)["']/i)?.[1]
+      || b.match(/<img\b[^>]*srcset=["']([^"']+)["']/i)?.[1]?.split(/[ ,]/)[0]
+      || b.match(/&lt;img\b[^&]*?src=["']([^"']+)["']/i)?.[1] || "";
     let safeLink = "";
     let safeImage = "";
     try { const u = new URL(link); if (u.protocol === "https:" || u.protocol === "http:") safeLink = u.toString(); } catch {}
@@ -46,6 +52,15 @@ function hostOf(url: string) { try { return new URL(url).hostname.replace(/^www\
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "POST required" }), { status: 405, headers: cors });
+  const configuredCronSecret = Deno.env.get("RADIN_CRON_SECRET") || "";\n  const cronAuthorized = configuredCronSecret.length > 0 && req.headers.get("x-radin-cron-secret") === configuredCronSecret;
+  if (!cronAuthorized) {
+    const authHeader = req.headers.get("authorization") || "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+    if (!authHeader.startsWith("Bearer ") || !anonKey) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
+    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, anonKey, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: authData, error: authError } = await authClient.auth.getUser();
+    if (authError || !authData.user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
+  }
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceKey) return new Response(JSON.stringify({ error: "Server configuration missing" }), { status: 500, headers: cors });
@@ -86,5 +101,5 @@ Deno.serve(async (req: Request) => {
       reports.push({ feed: hostOf(feed.url), fetched: 0, ok: false, error: message });
     }
   }
-  return new Response(JSON.stringify({ ok: reports.every((r) => r.ok), feeds: reports.length, totalFetched, totalUpserted, reports, note: "Imported stories enter pending review; none are auto-published." }), { status: 200, headers: cors });
+  return new Response(JSON.stringify({ ok: reports.every((r) => r.ok), feeds: reports.length, totalFetched, totalUpserted, reports, note: "RSS stories are saved as pending review and are not published automatically." }), { status: 200, headers: cors });
 });
