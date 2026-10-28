@@ -27,12 +27,14 @@ const $=id=>document.getElementById(id), canvas=$('canvas'),ctx=canvas.getContex
 let photoImg=null,logoImg=null,activeItem=null;
 const queueEl=$('queue');
 function safeText(v){return String(v||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-let pendingQueue=[];\nasync function loadQueue(){
+let pendingQueue=[];
+async function loadQueue(){
   queueEl.textContent='در حال دریافت خبرها...';
   try{
     const {data,error}=await sb.from('news_items').select('id,title,summary,category,image_url,graphic_image_url,source_name,published,review_status').eq('published',false).neq('review_status','rejected').order('created_at',{ascending:false}).limit(30);
     if(error)throw error;
-    if(!data?.length){queueEl.textContent='خبر تأییدنشده‌ای پیدا نشد.';return}
+    if(!data?.length){pendingQueue=[];queueEl.textContent='خبر تأییدنشده‌ای پیدا نشد.';return}
+    pendingQueue=data;
     queueEl.innerHTML=data.map(item=>'<div style="border:1px solid #e1e7f0;border-radius:10px;padding:10px;margin:8px 0"><b>'+safeText(item.title)+'</b><div class="hint">'+safeText(item.category||'عمومی')+' · '+(item.graphic_image_url?'تصویر آماده':'تصویر آماده نشده')+'</div><button class="btn secondary" data-make="'+item.id+'" type="button">'+(item.graphic_image_url?'بازسازی تصویر':'ساخت تصویر و ذخیره')+'</button></div>').join('');
     queueEl.querySelectorAll('[data-make]').forEach(btn=>btn.addEventListener('click',()=>makeForNews(data.find(x=>x.id===btn.dataset.make),btn)));
   }catch(e){queueEl.textContent='خطا: '+(e.message||e)}
@@ -98,7 +100,8 @@ $('logo').addEventListener('change',async e=>{logoImg=await loadFile(e.target.fi
 $('render').addEventListener('click',render);
 $('download').addEventListener('click',()=>{render();const a=document.createElement('a');a.download='radin-news-graphic.png';a.href=canvas.toDataURL('image/png');a.click()});
 $('clear').addEventListener('click',()=>{$('photo').value='';$('logo').value='';$('title').value='';$('source').value='';photoImg=logoImg=null;render()});
-document.fonts.ready.then(render);render();
+document.fonts.ready.then(render);
+(async()=>{try{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>{logoImg=im;render()};im.onerror=()=>render();im.src='radin-logo.svg'}catch(_){render()}})();
 try{const saved=localStorage.getItem('radinLogoDataUrl');if(saved){const im=new Image();im.onload=()=>{logoImg=im;render()};im.src=saved}}catch(_){}
 $('logo').addEventListener('change',async e=>{const file=e.target.files[0];logoImg=await loadFile(file);if(file){const reader=new FileReader();reader.onload=()=>{try{localStorage.setItem('radinLogoDataUrl',reader.result)}catch(_){}};reader.readAsDataURL(file)}render()});
 </script></body></html>
