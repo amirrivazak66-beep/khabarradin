@@ -46,6 +46,7 @@ async function makeForNews(item,btn){
     activeItem=item;$('title').value=item.title||'';$('category').value=[...$('category').options].some(o=>o.value===item.category)?item.category:'خبر فوری';
     $('source').value=item.source_name||'';photoImg=null;
     if(item.image_url){try{photoImg=await loadRemoteImage(item.image_url)}catch(_){photoImg=null}}
+    if(!photoImg) throw new Error('عکس واقعی این خبر در مرورگر قابل دریافت نیست. تصویر ناقص ذخیره نشد؛ ابتدا لینک عکس مستقیم یا فایل عکس اصلی را اضافه کنید.');
     render();
     const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('ساخت PNG ناموفق بود')),'image/png'));
     const path='news/'+item.id+'.png';
