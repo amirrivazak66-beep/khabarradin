@@ -184,6 +184,7 @@ a{text-decoration:none; color:inherit;}
         <a data-view="viewDashboard" class="active"><i class="fa-solid fa-gauge"></i> داشبورد</a>
         <a data-view="viewFeeds"><i class="fa-solid fa-rss"></i> فیدهای RSS</a>
         <a data-view="viewNews"><i class="fa-solid fa-newspaper"></i> خبرها</a>
+        <a data-view="viewBotSettings"><i class="fa-brands fa-telegram"></i> تنظیمات ربات تلگرام</a>
         <a data-view="viewSecurity"><i class="fa-solid fa-lock"></i> امنیت</a>
       </nav>
       <div class="spacer"></div>
@@ -245,6 +246,26 @@ a{text-decoration:none; color:inherit;}
         </div>
       </section>
 
+      <section id="viewBotSettings" class="view">
+        <div class="panel">
+          <h3><i class="fa-brands fa-telegram"></i> تنظیمات ربات تلگرام</h3>
+          <p class="sub">این تنظیمات در دیتابیس ذخیره می‌شوند. تا زمانی که اتصال عملیاتی هر گزینه به سرویس ربات تکمیل نشده، آن را تنظیمات ذخیره‌شده در نظر بگیر؛ نه تضمین تغییر رفتار ربات.</p>
+          <div class="notice">🔒 توکن ربات در این پنل نمایش داده نمی‌شود. انتشار خودکار به‌صورت پیش‌فرض خاموش است تا خبر بدون تأیید منتشر نشود.</div>
+          <div class="field"><label for="botChannel">نام کاربری کانال مقصد (مثلاً @radinnews)</label><input id="botChannel" type="text" dir="ltr" placeholder="@radinnews"></div>
+          <div class="field"><label for="botInterval">بازه دریافت خبر (دقیقه)</label><select id="botInterval" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit"><option value="5">۵ دقیقه</option><option value="10">۱۰ دقیقه</option><option value="15">۱۵ دقیقه</option><option value="30">۳۰ دقیقه</option><option value="60">۶۰ دقیقه</option></select><p class="sub" style="margin:6px 0 0">توجه: ذخیره این عدد به‌تنهایی زمان‌بندی pg_cron را تغییر نمی‌دهد؛ اتصال آن به زمان‌بندی سرور هنوز باید انجام شود.</p></div>
+          <label style="display:flex;align-items:center;gap:10px;margin:16px 0"><input id="botReviewRequired" type="checkbox" checked> تأیید مدیر قبل از انتشار الزامی باشد</label>
+          <label style="display:flex;align-items:center;gap:10px;margin:16px 0;opacity:.6"><input id="botAutoPublish" type="checkbox" disabled> انتشار خودکار خبرها (فعلاً غیرفعال)</label>
+          <div class="row-actions"><button class="btn-primary" id="saveBotSettingsBtn">ذخیره تنظیمات</button><button class="btn-secondary" id="reloadBotSettingsBtn">بارگذاری دوباره</button></div>
+          <div class="save-msg" id="botSettingsMsg"></div>
+          <div class="login-error" id="botSettingsError" style="display:none"></div>
+        </div>
+        <div class="panel">
+          <h3>وضعیت اتصال</h3>
+          <p class="sub" id="botConnectionStatus">برای بررسی وضعیت، ابتدا تنظیمات را بارگذاری کن.</p>
+          <div class="notice">این بخش فعلاً وضعیت ذخیره تنظیمات را نشان می‌دهد. فرمان‌های تأیید/رد و انتشار مستقیم در تلگرام هنوز باید در وب‌هوک پیاده‌سازی شوند.</div>
+        </div>
+      </section>
+
       <section id="viewSecurity" class="view">
         <div class="panel">
           <h3>تغییر رمز عبور</h3>
@@ -279,6 +300,7 @@ a{text-decoration:none; color:inherit;}
     document.getElementById('whoName').textContent = email || 'مدیر';
     loadFeedsFromDb();
     renderRecentNews();
+    loadBotSettings();
   }
 
   function showLoginError(msg){
@@ -526,6 +548,59 @@ a{text-decoration:none; color:inherit;}
       });
     });
   }
+
+  // ---- Telegram bot settings (stored in Supabase) ----
+  async function loadBotSettings(){
+    const msg = document.getElementById('botSettingsMsg');
+    const err = document.getElementById('botSettingsError');
+    msg.style.display = 'none'; err.style.display = 'none';
+    const { data, error } = await sb.from('bot_settings').select('*').eq('id','main').maybeSingle();
+    if(error){
+      err.textContent = 'خطا در بارگذاری تنظیمات: ' + error.message;
+      err.style.display = 'block';
+      document.getElementById('botConnectionStatus').textContent = 'بارگذاری تنظیمات ناموفق بود.';
+      return;
+    }
+    if(!data){
+      err.textContent = 'رکورد تنظیمات پیدا نشد.';
+      err.style.display = 'block';
+      return;
+    }
+    document.getElementById('botChannel').value = data.channel_username || '@radinnews';
+    document.getElementById('botInterval').value = String(data.poll_interval_minutes || 15);
+    document.getElementById('botReviewRequired').checked = data.review_required !== false;
+    document.getElementById('botAutoPublish').checked = false;
+    document.getElementById('botConnectionStatus').textContent = 'تنظیمات از دیتابیس خوانده شد. وب‌هوک تلگرام فعال است؛ اتصال عملیاتی تنظیمات زمان‌بندی و انتشار هنوز تکمیل نشده است.';
+  }
+  document.getElementById('reloadBotSettingsBtn').addEventListener('click', loadBotSettings);
+  document.getElementById('saveBotSettingsBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveBotSettingsBtn');
+    const msg = document.getElementById('botSettingsMsg');
+    const err = document.getElementById('botSettingsError');
+    msg.style.display = 'none'; err.style.display = 'none';
+    const channel = document.getElementById('botChannel').value.trim();
+    if(!/^@[A-Za-z0-9_]{5,}$/.test(channel)){
+      err.textContent = 'نام کاربری کانال را با @ وارد کن؛ مثلاً @radinnews';
+      err.style.display = 'block'; return;
+    }
+    btn.disabled = true; btn.textContent = 'در حال ذخیره...';
+    const { error } = await sb.from('bot_settings').update({
+      channel_username: channel,
+      review_required: document.getElementById('botReviewRequired').checked,
+      auto_publish: false,
+      poll_interval_minutes: Number(document.getElementById('botInterval').value),
+      updated_at: new Date().toISOString(),
+      updated_by: currentEmail
+    }).eq('id','main');
+    btn.disabled = false; btn.textContent = 'ذخیره تنظیمات';
+    if(error){
+      err.textContent = 'ذخیره ناموفق بود: ' + error.message;
+      err.style.display = 'block'; return;
+    }
+    msg.textContent = 'تنظیمات در دیتابیس ذخیره شد؛ زمان‌بندی و انتشار هنوز به این مقادیر متصل نیستند.';
+    msg.style.display = 'block';
+    document.getElementById('botConnectionStatus').textContent = 'آخرین ذخیره تنظیمات: ' + new Date().toLocaleString('fa-IR');
+  });
 
   // ---- Change password (real Supabase auth) ----
   document.getElementById('changePassBtn').addEventListener('click', async () => {
