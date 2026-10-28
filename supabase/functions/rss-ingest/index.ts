@@ -88,13 +88,22 @@ Deno.serve(async (req: Request) => {
         source_url: item.link, source_name: hostOf(feed.url), pub_date: item.pubDate,
         published: false, review_status: "pending",
       }));
+      let newRows = rows;
       if (rows.length) {
-        const { error } = await db.from("news_items").upsert(rows, { onConflict: "source_url", ignoreDuplicates: true });
-        if (error) throw error;
+        const sourceUrls = rows.map((row) => row.source_url);
+        const { data: existingRows, error: existingError } = await db.from("news_items")
+          .select("source_url").in("source_url", sourceUrls);
+        if (existingError) throw existingError;
+        const existingUrls = new Set((existingRows || []).map((row) => row.source_url));
+        newRows = rows.filter((row) => !existingUrls.has(row.source_url));
+        if (newRows.length) {
+          const { error } = await db.from("news_items").insert(newRows);
+          if (error) throw error;
+        }
       }
       await db.from("rss_feeds").update({ last_fetched_at: new Date().toISOString(), last_error: null }).eq("id", feed.id);
-      totalFetched += parsed.length; totalUpserted += rows.length;
-      reports.push({ feed: hostOf(feed.url), fetched: parsed.length, ok: true });
+      totalFetched += parsed.length; totalUpserted += newRows.length;
+      reports.push({ feed: hostOf(feed.url), fetched: parsed.length, newItems: newRows.length, ok: true });
     } catch (e) {
       const message = e instanceof Error ? e.message.slice(0, 500) : "Unknown feed error";
       await db.from("rss_feeds").update({ last_fetched_at: new Date().toISOString(), last_error: message }).eq("id", feed.id);
