@@ -31,7 +31,7 @@ let pendingQueue=[];
 async function loadQueue(){
   queueEl.textContent='در حال دریافت خبرها...';
   try{
-    const {data,error}=await sb.from('news_items').select('id,title,summary,category,image_url,graphic_image_url,source_name,published,review_status').eq('published',false).neq('review_status','rejected').order('created_at',{ascending:false}).limit(30);
+    const {data,error}=await sb.from('news_items').select('id,title,summary,category,image_url,graphic_image_url,source_name,pub_date,published,review_status').eq('published',false).neq('review_status','rejected').order('created_at',{ascending:false}).limit(30);
     if(error)throw error;
     if(!data?.length){pendingQueue=[];queueEl.textContent='خبر تأییدنشده‌ای پیدا نشد.';return}
     pendingQueue=data;
@@ -43,7 +43,7 @@ async function makeForNews(item,btn){
   if(!item)return;
   btn.disabled=true;btn.textContent='در حال ساخت...';
   try{
-    $('title').value=item.title||'';$('category').value=[...$('category').options].some(o=>o.value===item.category)?item.category:'خبر فوری';
+    activeItem=item;$('title').value=item.title||'';$('category').value=[...$('category').options].some(o=>o.value===item.category)?item.category:'خبر فوری';
     $('source').value=item.source_name||'';photoImg=null;
     if(item.image_url){try{photoImg=await loadRemoteImage(item.image_url)}catch(_){photoImg=null}}
     render();
@@ -78,22 +78,36 @@ function wrapText(text,maxWidth,font){ctx.font=font;const words=(text||'').trim(
 function drawCover(im,x,y,w,h){if(!im)return;const scale=Math.max(w/im.width,h/im.height),sw=w/scale,sh=h/scale,sx=(im.width-sw)/2,sy=(im.height-sh)/2;ctx.drawImage(im,sx,sy,sw,sh,x,y,w,h)}
 function render(){
 const W=1080,H=1350;ctx.clearRect(0,0,W,H);
-const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#304eaa');bg.addColorStop(1,'#12284f');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-// pixel motif
-ctx.globalAlpha=.12;for(let r=0;r<7;r++)for(let c=0;c<8;c++){ctx.fillStyle=(r+c)%2?'#ffffff':'#d7b65f';ctx.fillRect(790+c*34,90+r*34,20,20)}ctx.globalAlpha=1;
-// header ribbon
-ctx.fillStyle='#c9a34b';ctx.fillRect(0,0,W,14);ctx.fillStyle='#fff';ctx.font='700 30px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';ctx.fillText($('category').value,1010,72);
-// photo panel
-roundRect(ctx,48,112,984,680,28,'#ffffff');ctx.save();ctx.beginPath();ctx.roundRect(60,124,960,656,22);ctx.clip();if(photoImg)drawCover(photoImg,60,124,960,656);else{const p=ctx.createLinearGradient(60,124,1020,780);p.addColorStop(0,'#dce6fa');p.addColorStop(1,'#aabce4');ctx.fillStyle=p;ctx.fillRect(60,124,960,656);ctx.fillStyle='#fff';ctx.globalAlpha=.6;ctx.font='800 48px Vazirmatn,Tahoma';ctx.textAlign='center';ctx.fillText('تصویر خبر',540,450);ctx.globalAlpha=1}ctx.restore();
-// lower content card
-roundRect(ctx,48,820,984,400,24,'#ffffff');ctx.fillStyle='#c9a34b';ctx.fillRect(80,852,8,110);
-const title=$('title').value.trim()||'تیتر خبر را وارد کنید';const lines=wrapText(title,850,'800 46px Vazirmatn,Tahoma,sans-serif').slice(0,3);ctx.fillStyle='#162a50';ctx.textAlign='right';ctx.direction='rtl';ctx.font='800 46px Vazirmatn,Tahoma,sans-serif';let ty=895;for(const line of lines){ctx.fillText(line,990,ty);ty+=66}
-ctx.fillStyle='#d9e0ee';ctx.fillRect(80,ty+6,910,2);ctx.fillStyle='#64748b';ctx.font='500 23px Vazirmatn,Tahoma,sans-serif';ctx.fillText($('source').value.trim()?('منبع: '+$('source').value.trim()):'خبر رادین',990,ty+52);
-// logo, unchanged aspect ratio
-if(logoImg){const maxW=300,maxH=115,scale=Math.min(maxW/logoImg.width,maxH/logoImg.height);const lw=logoImg.width*scale,lh=logoImg.height*scale;ctx.drawImage(logoImg,80,1100,lw,lh)}else{ctx.fillStyle='#fff';ctx.font='800 28px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='left';ctx.fillText('لوگو را بارگذاری کنید',80,1155)}
-ctx.textAlign='left';ctx.fillStyle='#e8d49a';ctx.font='700 24px Vazirmatn,Tahoma,sans-serif';ctx.fillText('@radinnews',990,1170);
-ctx.fillStyle='#c9a34b';ctx.fillRect(0,H-14,W,14);
-$('status').textContent='پیش‌نمایش آماده است. اگر لوگو یا عکس تغییر کرد، دوباره «ساخت پیش‌نمایش» را بزنید.';
+const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#12377f');bg.addColorStop(1,'#061b4b');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#e5bd55';ctx.fillRect(0,0,W,14);
+ctx.globalAlpha=.13;for(let r=0;r<8;r++)for(let c=0;c<9;c++){ctx.fillStyle='#64a8ff';ctx.beginPath();ctx.arc(45+c*28,900+r*28,5,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
+// Header: category and original brand logo asset, preserved without redraw.
+roundRect(ctx,740,28,300,112,24,'#08265e');
+if(logoImg){const maxW=270,maxH=94,scale=Math.min(maxW/logoImg.width,maxH/logoImg.height);const lw=logoImg.width*scale,lh=logoImg.height*scale;ctx.drawImage(logoImg,1020-lw,37+(94-lh)/2,lw,lh)}
+ctx.fillStyle='#e9bd4f';roundRect(ctx,735,550,300,72,36,'#e9bd4f');ctx.fillStyle='#08265e';ctx.font='800 30px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='center';ctx.direction='rtl';ctx.fillText($('category').value,885,596);
+// Photo
+roundRect(ctx,28,155,1024,405,28,'#fff');ctx.save();ctx.beginPath();ctx.roundRect(38,165,1004,385,22);ctx.clip();
+if(photoImg)drawCover(photoImg,38,165,1004,385);else{const p=ctx.createLinearGradient(38,165,1042,550);p.addColorStop(0,'#dce6fa');p.addColorStop(1,'#aabce4');ctx.fillStyle=p;ctx.fillRect(38,165,1004,385);ctx.fillStyle='#15336f';ctx.font='800 42px Vazirmatn,Tahoma';ctx.textAlign='center';ctx.fillText('تصویر خبر در دسترس نیست',540,370)}ctx.restore();
+// Headline panel
+roundRect(ctx,0,585,1080,260,28,'#08265e');ctx.fillStyle='#e9bd4f';ctx.fillRect(1034,625,8,150);
+const title=$('title').value.trim()||'تیتر خبر';const lines=wrapText(title,900,'800 50px Vazirmatn,Tahoma,sans-serif').slice(0,3);ctx.fillStyle='#fff';ctx.textAlign='right';ctx.direction='rtl';ctx.font='800 50px Vazirmatn,Tahoma,sans-serif';let ty=665;for(const line of lines){ctx.fillText(line,1005,ty);ty+=61}
+// Summary card
+roundRect(ctx,24,865,1032,340,26,'#fff');ctx.fillStyle='#d3a73f';ctx.fillRect(1018,900,7,245);
+const summary=String(activeItem?.summary||'').replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ').trim();
+const summaryLines=wrapText(summary,900,'500 29px Vazirmatn,Tahoma,sans-serif').slice(0,5);
+ctx.fillStyle='#102b62';ctx.font='500 29px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';let sy=925;
+if(summaryLines.length){for(const line of summaryLines){ctx.fillText(line,995,sy);sy+=43}}else{ctx.font='500 26px Vazirmatn,Tahoma,sans-serif';ctx.fillText('خبر رادین | آخرین اخبار ایران و جهان',995,935);sy=980}
+ctx.strokeStyle='#dce2ec';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(70,1115);ctx.lineTo(1000,1115);ctx.stroke();
+// Timestamp/date are sourced from RSS pub_date, not generated from current time.
+let dateText='تاریخ نامشخص',timeText='زمان نامشخص';
+const rawDate=activeItem?.pub_date;
+if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime())){try{dateText=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Tehran'}).format(d);timeText=new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Tehran'}).format(d)}catch(_){dateText=d.toLocaleDateString('fa-IR');timeText=d.toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})}}}
+ctx.fillStyle='#102b62';ctx.font='700 23px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';ctx.fillText('منبع: '+($('source').value.trim()||activeItem?.source_name||'خبر رادین'),990,1160);
+ctx.textAlign='center';ctx.font='600 22px Vazirmatn,Tahoma,sans-serif';ctx.fillText(dateText+'  |  '+timeText,500,1160);
+// Branded footer
+ctx.fillStyle='#061b4b';ctx.fillRect(0,1225,W,125);ctx.fillStyle='#e5bd55';ctx.fillRect(0,1225,W,5);
+ctx.fillStyle='#fff';ctx.textAlign='left';ctx.font='800 29px Arial,sans-serif';ctx.fillText('@radinnews',70,1290);ctx.fillStyle='#70c7ff';ctx.fillRect(330,1250,3,55);ctx.fillStyle='#fff';ctx.textAlign='right';ctx.direction='rtl';ctx.font='500 25px Vazirmatn,Tahoma,sans-serif';ctx.fillText('آخرین اخبار ایران و جهان',1000,1290);
+$('status').textContent='پیش‌نمایش آماده است. تاریخ و ساعت از تاریخ انتشار RSS خوانده می‌شود؛ لوگوی بارگذاری‌شده بدون بازطراحی قرار می‌گیرد.';
 }
 $('photo').addEventListener('change',async e=>{photoImg=await loadFile(e.target.files[0]);render()});
 $('logo').addEventListener('change',async e=>{logoImg=await loadFile(e.target.files[0]);render()});
