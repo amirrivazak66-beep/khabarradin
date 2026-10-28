@@ -11,6 +11,7 @@
 <header class="head"><h1>استودیو گرافیک خبر رادین</h1><span class="tag">رایگان · بدون API تصویر</span></header>
 <div class="layout"><section class="panel">
 <h2>ساخت تصویر خبری</h2>
+<div class="field"><label>پردازش خودکار خبرهای در انتظار</label><button class="btn secondary" id="loadQueue" type="button">بارگذاری خبرهای تأییدنشده</button><div class="hint">خبرهای دریافت‌شده از RSS را از دیتابیس می‌خواند، قالب خبری می‌سازد و تصویر را در فضای ابری ذخیره می‌کند. انتشار تلگرام همچنان دستی می‌ماند.</div><div id="queue" class="status">برای شروع، خبرهای در انتظار را بارگذاری کنید.</div></div>
 <div class="field"><label for="photo">۱. عکس خبر</label><input id="photo" type="file" accept="image/*"><div class="hint">اگر عکس منبع ندارید، می‌توانید یک تصویر مرتبط انتخاب کنید.</div></div>
 <div class="field"><label for="logo">۲. لوگوی اصلی خبر رادین</label><input id="logo" type="file" accept="image/*"><div class="hint">فایل لوگوی اصلی را بارگذاری کنید. ابزار آن را بازطراحی نمی‌کند؛ فقط بدون تغییر روی قالب قرار می‌دهد.</div></div>
 <div class="field"><label for="title">۳. تیتر خبر</label><textarea id="title" maxlength="180" placeholder="تیتر کوتاه و دقیق خبر را وارد کنید"></textarea></div>
@@ -20,9 +21,43 @@
 <p class="status" id="status">تصویر در همین مرورگر ساخته می‌شود؛ عکس‌ها به سرور ارسال نمی‌شوند. برای استفاده از لوگوی دقیق، فایل اصلی را بارگذاری کنید.</p>
 </section>
 <section class="panel"><h2>پیش‌نمایش قالب ۴:۵</h2><div class="preview"><div class="canvas-wrap"><canvas id="canvas" width="1080" height="1350" aria-label="پیش‌نمایش تصویر خبر رادین"></canvas></div></div></section></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js"></script>
 <script>
 const $=id=>document.getElementById(id), canvas=$('canvas'),ctx=canvas.getContext('2d');
-let photoImg=null,logoImg=null;
+let photoImg=null,logoImg=null,activeItem=null;
+const queueEl=$('queue');
+function safeText(v){return String(v||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+async function loadQueue(){
+  queueEl.textContent='در حال دریافت خبرها...';
+  try{
+    const {data,error}=await sb.from('news_items').select('id,title,summary,category,image_url,graphic_image_url,source_name,published,review_status').eq('published',false).neq('review_status','rejected').order('created_at',{ascending:false}).limit(30);
+    if(error)throw error;
+    if(!data?.length){queueEl.textContent='خبر تأییدنشده‌ای پیدا نشد.';return}
+    queueEl.innerHTML=data.map(item=>'<div style="border:1px solid #e1e7f0;border-radius:10px;padding:10px;margin:8px 0"><b>'+safeText(item.title)+'</b><div class="hint">'+safeText(item.category||'عمومی')+' · '+(item.graphic_image_url?'تصویر آماده':'تصویر آماده نشده')+'</div><button class="btn secondary" data-make="'+item.id+'" type="button">'+(item.graphic_image_url?'بازسازی تصویر':'ساخت تصویر و ذخیره')+'</button></div>').join('');
+    queueEl.querySelectorAll('[data-make]').forEach(btn=>btn.addEventListener('click',()=>makeForNews(data.find(x=>x.id===btn.dataset.make),btn)));
+  }catch(e){queueEl.textContent='خطا: '+(e.message||e)}
+}
+async function makeForNews(item,btn){
+  if(!item)return;
+  btn.disabled=true;btn.textContent='در حال ساخت...';
+  try{
+    $('title').value=item.title||'';$('category').value=[...$('category').options].some(o=>o.value===item.category)?item.category:'خبر فوری';
+    $('source').value=item.source_name||'';photoImg=null;
+    if(item.image_url){try{photoImg=await loadRemoteImage(item.image_url)}catch(_){photoImg=null}}
+    render();
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('ساخت PNG ناموفق بود')),'image/png'));
+    const path='news/'+item.id+'.png';
+    const {error:uploadError}=await sb.storage.from('radin-graphics').upload(path,blob,{contentType:'image/png',upsert:true});
+    if(uploadError)throw uploadError;
+    const {data:pub}=sb.storage.from('radin-graphics').getPublicUrl(path);
+    const {error:updateError}=await sb.from('news_items').update({graphic_image_url:pub.publicUrl,original_image_url:item.image_url||null,updated_at:new Date().toISOString()}).eq('id',item.id);
+    if(updateError)throw updateError;
+    btn.textContent='تصویر ذخیره شد ✓';btn.disabled=false;
+    $('status').textContent='تصویر گرافیکی در فضای ابری ذخیره شد و به خبر متصل شد. برای انتشار، از پنل مدیریت خبر را جداگانه تأیید کن.';
+  }catch(e){btn.disabled=false;btn.textContent='تلاش دوباره';$('status').textContent='خطا در ذخیره تصویر: '+(e.message||e)}
+}
+function loadRemoteImage(url){return new Promise((resolve,reject)=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('این منبع اجازه پردازش عکس در مرورگر را نمی‌دهد؛ می‌توانی عکس را دستی بارگذاری کنی.'));im.src=url})}
+$('loadQueue').addEventListener('click',loadQueue);
 function loadFile(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=reject;im.src=u})}
 function roundRect(c,x,y,w,h,r,fill){c.beginPath();c.roundRect(x,y,w,h,r);c.fillStyle=fill;c.fill()}
 function wrapText(text,maxWidth,font){ctx.font=font;const words=(text||'').trim().split(/\s+/).filter(Boolean);const lines=[];let line='';for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);return lines}
@@ -52,4 +87,6 @@ $('render').addEventListener('click',render);
 $('download').addEventListener('click',()=>{render();const a=document.createElement('a');a.download='radin-news-graphic.png';a.href=canvas.toDataURL('image/png');a.click()});
 $('clear').addEventListener('click',()=>{$('photo').value='';$('logo').value='';$('title').value='';$('source').value='';photoImg=logoImg=null;render()});
 document.fonts.ready.then(render);render();
+try{const saved=localStorage.getItem('radinLogoDataUrl');if(saved){const im=new Image();im.onload=()=>{logoImg=im;render()};im.src=saved}}catch(_){}
+$('logo').addEventListener('change',async e=>{const file=e.target.files[0];logoImg=await loadFile(file);if(file){const reader=new FileReader();reader.onload=()=>{try{localStorage.setItem('radinLogoDataUrl',reader.result)}catch(_){}};reader.readAsDataURL(file)}render()});
 </script></body></html>
