@@ -20,10 +20,11 @@
 <button class="btn primary" id="render">ساخت پیش‌نمایش</button><div class="actions"><button class="btn secondary" id="download">دریافت PNG</button><button class="btn secondary" id="clear">پاک‌سازی</button></div>
 <p class="status" id="status">تصویر در همین مرورگر ساخته می‌شود؛ عکس‌ها به سرور ارسال نمی‌شوند. برای استفاده از لوگوی دقیق، فایل اصلی را بارگذاری کنید.</p>
 </section>
-<section class="panel"><h2>پیش‌نمایش قالب ۴:۵</h2><div class="preview"><div class="canvas-wrap"><canvas id="canvas" width="1080" height="1350" aria-label="پیش‌نمایش تصویر خبر رادین"></canvas></div></div></section></div></main>
+<section class="panel"><h2>پیش‌نمایش قالب ۴:۵</h2><div class="preview"><div class="canvas-wrap"><img id="savedGraphicPreview" alt="خروجی گرافیکی ذخیره‌شده خبر" style="display:none;width:100%;height:auto;border-radius:8px"><canvas id="canvas" width="1080" height="1350" aria-label="پیش‌نمایش تصویر خبر رادین"></canvas></div></div></section></div></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js"></script>
 <script>
 const $=id=>document.getElementById(id), canvas=$('canvas'),ctx=canvas.getContext('2d');
+function showSavedGraphic(url){const img=$('savedGraphicPreview');if(url){img.src=url;img.style.display='block';canvas.style.display='none'}else{img.removeAttribute('src');img.style.display='none';canvas.style.display='block'}}
 let photoImg=null,logoImg=null,activeItem=null;
 const queueEl=$('queue');
 function safeText(v){return String(v||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -35,6 +36,8 @@ async function loadQueue(){
     if(error)throw error;
     if(!data?.length){pendingQueue=[];queueEl.textContent='خبر تأییدنشده‌ای پیدا نشد.';return}
     pendingQueue=data;
+    const firstWithGraphic=data.find(x=>x.graphic_image_url);
+    if(firstWithGraphic){activeItem=firstWithGraphic;showSavedGraphic(firstWithGraphic.graphic_image_url);$('title').value=firstWithGraphic.title||'';$('source').value=firstWithGraphic.source_name||'';}else{showSavedGraphic(null);$('status').textContent='یک خبر را انتخاب و «ساخت تصویر» را بزنید؛ خروجی فقط پس از دریافت عکس واقعی ذخیره می‌شود.'}
     queueEl.innerHTML=data.map(item=>'<div style="border:1px solid #e1e7f0;border-radius:10px;padding:10px;margin:8px 0"><b>'+safeText(item.title)+'</b><div class="hint">'+safeText(item.category||'عمومی')+' · '+(item.graphic_image_url?'تصویر آماده':'تصویر آماده نشده')+'</div><button class="btn secondary" data-make="'+item.id+'" type="button">'+(item.graphic_image_url?'بازسازی تصویر':'ساخت تصویر و ذخیره')+'</button></div>').join('');
     queueEl.querySelectorAll('[data-make]').forEach(btn=>btn.addEventListener('click',()=>makeForNews(data.find(x=>x.id===btn.dataset.make),btn)));
   }catch(e){queueEl.textContent='خطا: '+(e.message||e)}
@@ -48,8 +51,12 @@ async function makeForNews(item,btn){
     if(error)throw new Error(error.message||'ارتباط با موتور گرافیک ناموفق بود');
     const result=(data?.results||[]).find(x=>x.id===item.id);
     if(!data?.ok || !result?.ok)throw new Error(result?.error||data?.error||'تصویر ساخته نشد؛ گزارش موتور گرافیک را بررسی کنید.');
+    const {data:updated,error:readError}=await sb.from('news_items').select('graphic_image_url,title,source_name').eq('id',item.id).single();
+    if(readError)throw readError;
+    showSavedGraphic(updated.graphic_image_url);
+    $('title').value=updated.title||item.title||'';$('source').value=updated.source_name||item.source_name||'';
     btn.textContent='تصویر با موفقیت ذخیره شد ✓';
-    $('status').textContent='تصویر از سمت سرور ساخته و به خبر متصل شد. اکنون پیش‌نمایش خبر را از فضای ابری بارگذاری کنید.';
+    $('status').textContent='تصویر گرافیکی ذخیره شد و پیش‌نمایش واقعی نمایش داده می‌شود.';
     await loadQueue();
   }catch(e){
     btn.disabled=false;btn.textContent='تلاش دوباره';
