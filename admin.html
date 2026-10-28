@@ -512,7 +512,7 @@ a{text-decoration:none; color:inherit;}
       const { data, error } = await sb.functions.invoke('rss-ingest', { body: { trigger: 'manual' } });
       if (error) throw error;
       const reports = (data?.reports || []).map(r => r.ok
-        ? '<div class="pull-report-item ok">✅ ' + String(r.feed || 'منبع') + ' — ' + Number(r.fetched || 0) + ' خبر دریافت شد؛ برای انتشار در صف بررسی است.</div>'
+        ? '<div class="pull-report-item ok">✅ ' + String(r.feed || 'منبع') + ' — ' + Number(r.fetched || 0) + ' خبر بررسی شد؛ ' + Number(r.newItems || 0) + ' خبر جدید به صف بررسی اضافه شد.</div>'
         : '<div class="pull-report-item fail">⚠️ ' + String(r.feed || 'منبع') + ' — ' + String(r.error || 'خطای دریافت') + '</div>');
       reportEl.innerHTML = reports.join('') || '<div class="pull-report-item fail">هیچ فید فعالی ثبت نشده است.</div>';
       document.getElementById('statUpdated').textContent = 'هم‌اکنون';
