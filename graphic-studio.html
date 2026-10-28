@@ -36,8 +36,8 @@ async function loadQueue(){
     if(error)throw error;
     if(!data?.length){pendingQueue=[];queueEl.textContent='خبر تأییدنشده‌ای پیدا نشد.';return}
     pendingQueue=data;
-    const firstWithGraphic=data.find(x=>x.graphic_image_url);
-    if(firstWithGraphic){activeItem=firstWithGraphic;showSavedGraphic(firstWithGraphic.graphic_image_url);$('title').value=firstWithGraphic.title||'';$('source').value=firstWithGraphic.source_name||'';}else{showSavedGraphic(null);$('status').textContent='یک خبر را انتخاب و «ساخت تصویر» را بزنید؛ خروجی فقط پس از دریافت عکس واقعی ذخیره می‌شود.'}
+    const selectedGraphic=data.find(x=>x.id===activeItem?.id && x.graphic_image_url)||data.find(x=>x.graphic_image_url);
+    if(selectedGraphic){activeItem=selectedGraphic;showSavedGraphic(selectedGraphic.graphic_image_url);$('title').value=selectedGraphic.title||'';$('source').value=selectedGraphic.source_name||'';}else{showSavedGraphic(null);$('status').textContent='یک خبر را انتخاب و «ساخت تصویر» را بزنید؛ خروجی فقط پس از دریافت عکس واقعی ذخیره می‌شود.'}
     queueEl.innerHTML=data.map(item=>'<div style="border:1px solid #e1e7f0;border-radius:10px;padding:10px;margin:8px 0"><b>'+safeText(item.title)+'</b><div class="hint">'+safeText(item.category||'عمومی')+' · '+(item.graphic_image_url?'تصویر آماده':'تصویر آماده نشده')+'</div><button class="btn secondary" data-make="'+item.id+'" type="button">'+(item.graphic_image_url?'بازسازی تصویر':'ساخت تصویر و ذخیره')+'</button></div>').join('');
     queueEl.querySelectorAll('[data-make]').forEach(btn=>btn.addEventListener('click',()=>makeForNews(data.find(x=>x.id===btn.dataset.make),btn)));
   }catch(e){queueEl.textContent='خطا: '+(e.message||e)}
@@ -69,9 +69,9 @@ $('makeAll').addEventListener('click',async()=>{
   if(!pendingQueue.length) await loadQueue();
   if(!pendingQueue.length)return;
   const b=$('makeAll');b.disabled=true;
-  for(let i=0;i<pendingQueue.length;i++){
-    const item=pendingQueue[i];
-    if(item.graphic_image_url)continue;
+  const itemsToBuild=[...pendingQueue];
+  for(let i=0;i<itemsToBuild.length;i++){
+    const item=itemsToBuild[i];
     const target=queueEl.querySelector('[data-make="'+item.id+'"]');
     if(target)await makeForNews(item,target);
   }
