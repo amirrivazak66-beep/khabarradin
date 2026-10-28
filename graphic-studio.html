@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>استودیو گرافیک خبر رادین</title>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#2f4eaa;--navy:#10254b;--gold:#c9a34b;--ink:#18253a}*{box-sizing:border-box}body{margin:0;background:#edf1f7;color:var(--ink);font-family:Vazirmatn,Tahoma,sans-serif}.wrap{max-width:1150px;margin:auto;padding:22px}.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}.head h1{font-size:22px;margin:0}.tag{background:#e4ebff;color:#2348a0;padding:7px 12px;border-radius:30px;font-size:12px}.layout{display:grid;grid-template-columns:340px 1fr;gap:20px}.panel{background:#fff;border-radius:16px;padding:18px;box-shadow:0 8px 24px #132a4912}.panel h2{font-size:16px;margin:0 0 15px}.field{margin:0 0 14px}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}.field input,.field textarea,.field select{width:100%;font:inherit;font-size:13px;padding:10px;border:1px solid #d9e0ed;border-radius:9px;background:#fff}.field textarea{min-height:95px;resize:vertical}.hint{font-size:11px;color:#75839a;line-height:1.9}.btn{font:inherit;font-size:13px;font-weight:800;border:0;border-radius:10px;padding:12px 14px;cursor:pointer}.primary{background:var(--blue);color:white;width:100%}.secondary{background:#edf1fa;color:#1c376f}.actions{display:flex;gap:8px;margin-top:10px}.actions .btn{flex:1}.preview{display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:6px}.canvas-wrap{width:min(100%,520px);background:#fff;border-radius:14px;box-shadow:0 8px 30px #0a14201c;padding:8px}.canvas-wrap canvas{display:block;width:100%;height:auto;border-radius:8px}.status{font-size:12px;margin-top:10px;color:#52627a;line-height:1.8}@media(max-width:800px){.layout{grid-template-columns:1fr}.wrap{padding:12px}.head h1{font-size:17px}}
+</style></head>
+<body><main class="wrap">
+<header class="head"><h1>استودیو گرافیک خبر رادین</h1><span class="tag">رایگان · بدون API تصویر</span></header>
+<div class="layout"><section class="panel">
+<h2>ساخت تصویر خبری</h2>
+<div class="field"><label for="photo">۱. عکس خبر</label><input id="photo" type="file" accept="image/*"><div class="hint">اگر عکس منبع ندارید، می‌توانید یک تصویر مرتبط انتخاب کنید.</div></div>
+<div class="field"><label for="logo">۲. لوگوی اصلی خبر رادین</label><input id="logo" type="file" accept="image/*"><div class="hint">فایل لوگوی اصلی را بارگذاری کنید. ابزار آن را بازطراحی نمی‌کند؛ فقط بدون تغییر روی قالب قرار می‌دهد.</div></div>
+<div class="field"><label for="title">۳. تیتر خبر</label><textarea id="title" maxlength="180" placeholder="تیتر کوتاه و دقیق خبر را وارد کنید"></textarea></div>
+<div class="field"><label for="category">دسته‌بندی</label><select id="category"><option>خبر فوری</option><option>ایران</option><option>بین‌الملل</option><option>سیاست</option><option>اقتصاد</option><option>فناوری</option><option>ورزش</option><option>سلامت</option><option>حوادث</option></select></div>
+<div class="field"><label for="source">منبع خبر (اختیاری)</label><input id="source" maxlength="60" placeholder="مثلاً مهر"></div>
+<button class="btn primary" id="render">ساخت پیش‌نمایش</button><div class="actions"><button class="btn secondary" id="download">دریافت PNG</button><button class="btn secondary" id="clear">پاک‌سازی</button></div>
+<p class="status" id="status">تصویر در همین مرورگر ساخته می‌شود؛ عکس‌ها به سرور ارسال نمی‌شوند. برای استفاده از لوگوی دقیق، فایل اصلی را بارگذاری کنید.</p>
+</section>
+<section class="panel"><h2>پیش‌نمایش قالب ۴:۵</h2><div class="preview"><div class="canvas-wrap"><canvas id="canvas" width="1080" height="1350" aria-label="پیش‌نمایش تصویر خبر رادین"></canvas></div></div></section></div></main>
+<script>
+const $=id=>document.getElementById(id), canvas=$('canvas'),ctx=canvas.getContext('2d');
+let photoImg=null,logoImg=null;
+function loadFile(file){return new Promise((resolve,reject)=>{if(!file)return resolve(null);const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=reject;im.src=u})}
+function roundRect(c,x,y,w,h,r,fill){c.beginPath();c.roundRect(x,y,w,h,r);c.fillStyle=fill;c.fill()}
+function wrapText(text,maxWidth,font){ctx.font=font;const words=(text||'').trim().split(/\s+/).filter(Boolean);const lines=[];let line='';for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);return lines}
+function drawCover(im,x,y,w,h){if(!im)return;const scale=Math.max(w/im.width,h/im.height),sw=w/scale,sh=h/scale,sx=(im.width-sw)/2,sy=(im.height-sh)/2;ctx.drawImage(im,sx,sy,sw,sh,x,y,w,h)}
+function render(){
+const W=1080,H=1350;ctx.clearRect(0,0,W,H);
+const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#304eaa');bg.addColorStop(1,'#12284f');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+// pixel motif
+ctx.globalAlpha=.12;for(let r=0;r<7;r++)for(let c=0;c<8;c++){ctx.fillStyle=(r+c)%2?'#ffffff':'#d7b65f';ctx.fillRect(790+c*34,90+r*34,20,20)}ctx.globalAlpha=1;
+// header ribbon
+ctx.fillStyle='#c9a34b';ctx.fillRect(0,0,W,14);ctx.fillStyle='#fff';ctx.font='700 30px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';ctx.fillText($('category').value,1010,72);
+// photo panel
+roundRect(ctx,48,112,984,680,28,'#ffffff');ctx.save();ctx.beginPath();ctx.roundRect(60,124,960,656,22);ctx.clip();if(photoImg)drawCover(photoImg,60,124,960,656);else{const p=ctx.createLinearGradient(60,124,1020,780);p.addColorStop(0,'#dce6fa');p.addColorStop(1,'#aabce4');ctx.fillStyle=p;ctx.fillRect(60,124,960,656);ctx.fillStyle='#fff';ctx.globalAlpha=.6;ctx.font='800 48px Vazirmatn,Tahoma';ctx.textAlign='center';ctx.fillText('تصویر خبر',540,450);ctx.globalAlpha=1}ctx.restore();
+// lower content card
+roundRect(ctx,48,820,984,400,24,'#ffffff');ctx.fillStyle='#c9a34b';ctx.fillRect(80,852,8,110);
+const title=$('title').value.trim()||'تیتر خبر را وارد کنید';const lines=wrapText(title,850,'800 46px Vazirmatn,Tahoma,sans-serif').slice(0,3);ctx.fillStyle='#162a50';ctx.textAlign='right';ctx.direction='rtl';ctx.font='800 46px Vazirmatn,Tahoma,sans-serif';let ty=895;for(const line of lines){ctx.fillText(line,990,ty);ty+=66}
+ctx.fillStyle='#d9e0ee';ctx.fillRect(80,ty+6,910,2);ctx.fillStyle='#64748b';ctx.font='500 23px Vazirmatn,Tahoma,sans-serif';ctx.fillText($('source').value.trim()?('منبع: '+$('source').value.trim()):'خبر رادین',990,ty+52);
+// logo, unchanged aspect ratio
+if(logoImg){const maxW=300,maxH=115,scale=Math.min(maxW/logoImg.width,maxH/logoImg.height);const lw=logoImg.width*scale,lh=logoImg.height*scale;ctx.drawImage(logoImg,80,1100,lw,lh)}else{ctx.fillStyle='#fff';ctx.font='800 28px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='left';ctx.fillText('لوگو را بارگذاری کنید',80,1155)}
+ctx.textAlign='left';ctx.fillStyle='#e8d49a';ctx.font='700 24px Vazirmatn,Tahoma,sans-serif';ctx.fillText('@radinnews',990,1170);
+ctx.fillStyle='#c9a34b';ctx.fillRect(0,H-14,W,14);
+$('status').textContent='پیش‌نمایش آماده است. اگر لوگو یا عکس تغییر کرد، دوباره «ساخت پیش‌نمایش» را بزنید.';
+}
+$('photo').addEventListener('change',async e=>{photoImg=await loadFile(e.target.files[0]);render()});
+$('logo').addEventListener('change',async e=>{logoImg=await loadFile(e.target.files[0]);render()});
+$('render').addEventListener('click',render);
+$('download').addEventListener('click',()=>{render();const a=document.createElement('a');a.download='radin-news-graphic.png';a.href=canvas.toDataURL('image/png');a.click()});
+$('clear').addEventListener('click',()=>{$('photo').value='';$('logo').value='';$('title').value='';$('source').value='';photoImg=logoImg=null;render()});
+document.fonts.ready.then(render);render();
+</script></body></html>
