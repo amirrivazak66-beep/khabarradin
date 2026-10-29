@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
 
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: item, error: itemError } = await db.from("news_items")
-    .select("id,title,summary,original_summary,rewritten_text,category,source_url,source_name,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id")
+    .select("id,title,summary,original_summary,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id")
     .eq("id", payload.id).maybeSingle();
   if (itemError) return json({ error: "Could not load story" }, 500);
   if (!item) return json({ error: "Story not found" }, 404);
@@ -110,6 +110,19 @@ Deno.serve(async (req: Request) => {
       console.error("Editorial rewrite failed; keeping original RSS text", String(error));
     }
   }
+  const stripTelegramTrace = (value: string) => value
+    .replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "")
+    .split(/\r?\n/)
+    .filter((line: string) => !/^\s*(?:[🔗🌐📢📰]\s*)?(?:منبع(?:\s+خبر)?|لینک(?:\s+منبع)?|source|channel)\s*[:：-]/i.test(line))
+    .map((line: string) => line.replace(/(^|\s)@[a-z0-9_]{3,}/gi, "$1").trim())
+    .filter(Boolean)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (item.source_type === "telegram") {
+    title = stripTelegramTrace(title);
+    summary = stripTelegramTrace(summary);
+  }
   const combinedForEmoji = (title + " " + summary + " " + category).toLowerCase();
   const emojiRules: Array<[RegExp, string]> = [
     [/زلزله|زمین.?لرزه|earthquake/, "🌍"],
@@ -149,7 +162,8 @@ Deno.serve(async (req: Request) => {
   };
   const sourceName = sourceAliases[sourceLower] || rawSource.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "") || "خبر";
   const escapeHtml = (value: string) => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\x27/g,"&#39;");
-  const fullStory = String(item.rewritten_text || item.original_summary || summary || "").trim();
+  const rawFullStory = String(item.rewritten_text || item.original_summary || summary || "").trim();
+  const fullStory = item.source_type === "telegram" ? stripTelegramTrace(rawFullStory) : rawFullStory;
   const dateLabel = (() => {
     if (!item.pub_date) return "";
     try {
@@ -169,8 +183,8 @@ Deno.serve(async (req: Request) => {
     category ? "🏷️ <b>" + escapeHtml(category) + "</b>" : "",
     fullStory ? "📝 " + escapeHtml(fullStory) : "",
     dateLabel ? "🗓️ " + escapeHtml(dateLabel) : "",
-    "🔎 منبع: " + escapeHtml(sourceName),
-    "🌐 khabarradin.ir",
+    item.source_type === "telegram" ? "" : "🔎 منبع: " + escapeHtml(sourceName),
+    item.source_type === "telegram" ? "" : "🌐 khabarradin.ir",
 
   ].filter(Boolean).join("\n\n");
   // Telegram photo captions are limited to 1024 characters. Never silently truncate or send a second post.
