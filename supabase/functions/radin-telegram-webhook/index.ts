@@ -275,7 +275,7 @@ Deno.serve(async (req: Request) => {
     const { error } = await db.from("news_items").update({
       title, summary: summary || null, image_url: imageUrl, source_name: sourceName,
       original_title: title, original_summary: summary || null, source_type: "website",
-      pub_date: publishedAt, review_status: "pending", updated_at: new Date().toISOString(),
+      pub_date: publishedAt, review_status: "pending", graphic_image_url: null, original_image_url: null, updated_at: new Date().toISOString(),
     }).eq("id", itemId).eq("published", false);
     if (error) {
       await telegram("sendMessage", { chat_id: chatId, text: "به‌روزرسانی خبر انجام نشد. لطفاً بررسی کنید." });
@@ -283,20 +283,18 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  if (!existing?.graphic_image_url) {
-    const worker = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
-      method: "POST",
-      headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
-      body: JSON.stringify({ item_id: itemId }),
-      signal: AbortSignal.timeout(60000),
-    });
-    let workerResult: any = {};
-    try { workerResult = await worker.json(); } catch {}
-    if (!worker.ok || !workerResult.ok || !workerResult.results?.some((row: any) => row.id === itemId && row.ok)) {
-      console.error("Graphic generation failed", worker.status, JSON.stringify(workerResult).slice(0, 500));
-      await telegram("sendMessage", { chat_id: chatId, text: "خبر ثبت شد، اما ساخت پوستر کامل نشد. در استودیو گرافیک آن را بررسی کنید؛ انتشار انجام نشده است." });
-      return json({ ok: true });
-    }
+  const worker = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
+    method: "POST",
+    headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
+    body: JSON.stringify({ item_id: itemId }),
+    signal: AbortSignal.timeout(60000),
+  });
+  let workerResult: any = {};
+  try { workerResult = await worker.json(); } catch {}
+  if (!worker.ok || !workerResult.ok || !workerResult.results?.some((row: any) => row.id === itemId && row.ok)) {
+    console.error("Graphic generation failed", worker.status, JSON.stringify(workerResult).slice(0, 500));
+    await telegram("sendMessage", { chat_id: chatId, text: "خبر ثبت شد، اما ساخت پوستر کامل نشد. در استودیو گرافیک آن را بررسی کنید؛ انتشار انجام نشده است." });
+    return json({ ok: true });
   }
 
   const { data: ready } = await db.from("news_items")
