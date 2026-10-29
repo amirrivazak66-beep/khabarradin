@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
 
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: item, error: itemError } = await db.from("news_items")
-    .select("id,title,summary,original_summary,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id")
+    .select("id,title,summary,original_summary,rewritten_title,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id")
     .eq("id", payload.id).maybeSingle();
   if (itemError) return json({ error: "Could not load story" }, 500);
   if (!item) return json({ error: "Story not found" }, 404);
@@ -59,6 +59,10 @@ Deno.serve(async (req: Request) => {
 
   if (item.published || item.telegram_message_id) return json({ error: "Story may already have been published; refusing duplicate send" }, 409);
   if (item.review_status === "rejected") return json({ error: "Rejected story cannot be published without re-review" }, 409);
+
+  if (item.source_type === "telegram" && !String(item.rewritten_title || "").trim()) {
+    return json({ error: "تیتر هوش مصنوعی برای پوستر آماده نیست؛ خبر بدون تیتر منتشر نمی‌شود." }, 409);
+  }
 
   // Require the branded graphic before sending anything to Telegram.
   const approvedGraphicUrl = String(item.graphic_image_url || "").trim();
