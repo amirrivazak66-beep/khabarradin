@@ -187,6 +187,14 @@ Deno.serve(async (req: Request) => {
   const canonicalUrl = sourceUrl
     ? sourceUrl.toString()
     : "telegram:forwarded/" + String(forwardChat?.id || chatId) + "/" + String(forwardMessageId || message.message_id || update.update_id);
+  const acknowledgement = await telegram("sendMessage", {
+    chat_id: chatId,
+    text: "📥 خبر دریافت شد؛ در حال آماده‌سازی تصویر گرافیکی...",
+    disable_web_page_preview: true,
+  });
+  if (!acknowledgement.response.ok || !acknowledgement.result.ok) {
+    console.error("Telegram receipt acknowledgement failed", acknowledgement.response.status, acknowledgement.result?.description || "unknown");
+  }
   const { data: existing } = await db.from("news_items")
     .select("id,published,review_status,graphic_image_url").eq("source_url", canonicalUrl).maybeSingle();
   if (existing?.published) {
@@ -340,6 +348,8 @@ Deno.serve(async (req: Request) => {
   if (!preview.response.ok || !preview.result.ok) {
     console.error("Telegram preview failed", preview.response.status, preview.result?.description || "unknown");
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر آماده شد، اما ارسال پیش‌نمایش در گفتگو ناموفق بود. از پنل مدیریت خبر را بررسی کنید." });
+  } else {
+    console.log("Manual story preview delivered", itemId, preview.result.result?.message_id || "unknown");
   }
   return json({ ok: true });
 });
