@@ -363,8 +363,22 @@ Deno.serve(async (req: Request) => {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر هنوز آماده نیست؛ خبر منتشر نشده است." });
     return json({ ok: true });
   }
+  const workerItemResult = workerResult.results.find((row: any) => row.id === itemId);
+  const aiStatus = String(workerItemResult?.ai_status || "not_applicable");
+  const designNote = aiStatus === "redesigned"
+    ? "🎨 تصویر با هوش مصنوعی بازطراحی شد."
+    : aiStatus === "no_credits"
+    ? "⚠️ اعتبار API تصویر تمام است؛ پوستر با قالب رادین آماده شد."
+    : aiStatus === "missing_key"
+    ? "⚠️ کلید API تصویر تنظیم نشده؛ پوستر با قالب رادین آماده شد."
+    : aiStatus === "timeout"
+    ? "⚠️ هوش مصنوعی به‌موقع پاسخ نداد؛ پوستر با قالب رادین آماده شد."
+    : aiStatus === "api_error"
+    ? "⚠️ بازطراحی هوشمند ناموفق بود؛ پوستر با قالب رادین آماده شد."
+    : "🎨 پوستر گرافیکی رادین آماده شد.";
   const previewText = [
     "پیش‌نمایش خبر — هنوز منتشر نشده",
+    designNote,
     ready.title,
     ready.summary ? "\n" + ready.summary : "",
     ...(ready.source_type === "telegram" ? [] : ["\nمنبع: " + (ready.source_name || sourceName)]),
