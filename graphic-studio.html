@@ -131,7 +131,7 @@ $('render').addEventListener('click',render);
 $('download').addEventListener('click',()=>{render();const a=document.createElement('a');a.download='radin-news-graphic.png';a.href=canvas.toDataURL('image/png');a.click()});
 $('clear').addEventListener('click',()=>{$('photo').value='';$('logo').value='';$('title').value='';$('source').value='';photoImg=logoImg=null;render()});
 document.fonts.ready.then(render);
-(async()=>{try{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>{logoImg=im;render()};im.onerror=()=>render();im.src='radin-logo.svg'}catch(_){render()}})();
+(async()=>{try{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>{logoImg=im;render()};im.onerror=()=>render();im.src='خبر-رادین.png'}catch(_){render()}})();
 try{const saved=localStorage.getItem('radinLogoDataUrl');if(saved){const im=new Image();im.onload=()=>{logoImg=im;render()};im.src=saved}}catch(_){}
 $('logo').addEventListener('change',async e=>{const file=e.target.files[0];logoImg=await loadFile(file);if(file){const reader=new FileReader();reader.onload=()=>{try{localStorage.setItem('radinLogoDataUrl',reader.result)}catch(_){}};reader.readAsDataURL(file)}render()});
 </script></body></html>
