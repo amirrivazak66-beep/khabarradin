@@ -71,7 +71,21 @@ a{text-decoration:none; color:inherit;}
 }
 .login-note{margin-top:22px; font-size:11px; color:#5c6b83; text-align:center; line-height:1.9;}
 
-#dashboard{display:none; min-height:100vh; grid-template-columns:230px 1fr;}
+#dashboard{display:none; min-height:100vh; grid-template-columns:230px minmax(0,1fr); grid-template-rows:auto 1fr;}
+.dashboard-banner{grid-column:1/-1;min-height:104px;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 34px;background:radial-gradient(ellipse at 55% 5%,rgba(48,105,220,.45),transparent 48%),linear-gradient(115deg,#123a85 0%,#07307c 52%,#061f5c 100%);border-bottom:4px solid #d5ad48;position:relative;overflow:hidden;color:#fff;}
+.dashboard-banner:before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(91,164,255,.38) 1.3px,transparent 1.8px);background-size:13px 13px;mask-image:linear-gradient(90deg,transparent 25%,#000 52%,transparent 82%);opacity:.5;pointer-events:none}
+.dashboard-banner:after{content:'';position:absolute;right:25%;top:-70px;width:170px;height:220px;border-right:10px solid #e9bd4b;border-left:5px solid rgba(255,255,255,.15);transform:skew(-35deg);opacity:.85;pointer-events:none}
+.dashboard-banner .banner-meta,.dashboard-banner .banner-brand{position:relative;z-index:1;display:flex;align-items:center;gap:18px}
+.dashboard-banner .banner-meta{direction:ltr;font-size:14px;font-weight:600;white-space:nowrap}
+.dashboard-banner .banner-meta .meta-item{display:flex;align-items:center;gap:9px}
+.dashboard-banner .banner-meta .sep{height:30px;width:1px;background:rgba(255,255,255,.45)}
+.dashboard-banner .banner-brand{margin-right:auto;gap:14px}
+.dashboard-banner .banner-brand img{width:92px;height:92px;object-fit:contain;display:block;border-radius:0;background:transparent}
+.dashboard-banner .banner-brand strong{font-size:16px;font-weight:800;white-space:nowrap}
+.sidebar{grid-column:1;grid-row:2;min-height:calc(100vh - 108px)}
+.main-area{grid-column:2;grid-row:2;padding:26px 32px;max-width:none;min-width:0}
+@media(max-width:850px){.dashboard-banner{padding:12px 16px;min-height:86px}.dashboard-banner .banner-brand img{width:64px;height:64px}.dashboard-banner .banner-meta{font-size:11px;gap:9px}.dashboard-banner .banner-brand strong{display:none}#dashboard{grid-template-columns:190px minmax(0,1fr)}.main-area{padding:18px 14px}}
+@media(max-width:600px){#dashboard.show{display:block}.dashboard-banner{justify-content:space-between}.dashboard-banner .banner-meta{flex-wrap:wrap}.sidebar{min-height:auto}.main-area{padding:14px}}
 #dashboard.show{display:grid;}
 .sidebar{background:var(--navy-950); color:#c4cddb; padding:22px 16px; display:flex; flex-direction:column;}
 .sidebar .brand{display:flex; align-items:center; gap:10px; padding:0 6px 24px; border-bottom:1px solid rgba(255,255,255,.07); margin-bottom:16px;}
@@ -178,6 +192,14 @@ a{text-decoration:none; color:inherit;}
   </div>
 
   <div id="dashboard">
+    <header class="dashboard-banner" aria-label="سربرگ خبر رادین">
+      <div class="banner-meta">
+        <span class="meta-item"><i class="fa-solid fa-globe"></i><span>khabarradin.ir</span></span>
+        <span class="sep"></span>
+        <span class="meta-item"><i class="fa-regular fa-calendar-days"></i><span id="dashboardPersianDate">در حال بارگذاری تاریخ…</span></span>
+      </div>
+      <div class="banner-brand"><img src="خبر-رادین.png" alt="لوگوی اصلی خبر رادین"><strong>خبر رادین</strong></div>
+    </header>
     <aside class="sidebar">
       <div class="brand"><div class="dot"><i class="fa-solid fa-newspaper"></i></div><span>پنل خبر رادین</span></div>
       <nav>
@@ -768,6 +790,9 @@ a{text-decoration:none; color:inherit;}
     }
   })();
 })();
+</script>
+<script>
+(()=>{const el=document.getElementById('dashboardPersianDate');if(el){try{el.textContent=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Tehran'}).format(new Date())}catch{el.textContent=new Date().toLocaleDateString('fa-IR')}}})();
 </script>
 </body>
 </html>
