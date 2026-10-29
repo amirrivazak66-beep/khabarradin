@@ -169,7 +169,33 @@ Deno.serve(async(req)=>{
      }catch(e){console.error("AI headline generation failed",e instanceof Error?e.message:"unknown");}
    }
    if(isTelegram&&(headlineStatus!=="ai"||!graphicHeadline)){throw new Error("AI headline unavailable; refusing titleless graphic");}
-   if(isTelegram&&openAiKey&&sourceImageUrl&&!apiNoCredits){
+   const geminiImageEnabled=isTelegram&&Boolean(geminiKey)&&Deno.env.get("GEMINI_IMAGE_ENABLED")==="true";
+   if(geminiImageEnabled&&sourceImageUrl){
+     try{
+       const encoded=imageData.match(/^data:([^;]+);base64,([\\s\\S]+)$/);
+       if(!encoded)throw new Error("Source image encoding invalid");
+       const response=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
+         method:"POST",headers:{"x-goog-api-key":geminiKey,"Content-Type":"application/json"},
+         body:JSON.stringify({
+           model:"gemini-3.1-flash-lite-image",
+           input:[
+             {type:"text",text:"Edit this real news photograph for a Persian news poster. Preserve the people, faces, identities, factual scene, objects, and symbols exactly. Apply restrained professional photo retouching, natural colors, realistic skin tones, improved sharpness and balanced contrast. Do not add any text, letters, logos, watermark, flags, symbols, blue tint, colored overlay, gradient, vignette, shadow, crop that removes the subject, or invented content. Return only the edited photograph with the same composition and aspect ratio."},
+             {type:"image",mime_type:encoded[1],data:encoded[2]}
+           ],
+           response_format:{type:"image",mime_type:"image/jpeg",image_size:"1K"}
+         }),
+         signal:AbortSignal.timeout(60000)
+       });
+       let result:any={};try{result=await response.json()}catch{}
+       const generated=result?.steps?.flatMap((step:any)=>step.type==="model_output"?(step.content||[]):[]).find((part:any)=>part.type==="image"&&typeof part.data==="string");
+       if(response.ok&&generated?.data){imageData="data:"+(generated.mime_type||"image/jpeg")+";base64,"+generated.data;aiStatus="gemini_image";}
+       else{
+         const errorText=String(result?.error?.message||"Gemini returned no edited image").slice(0,220);
+         console.error("Gemini image redesign failed",response.status,errorText);
+         throw new Error("Gemini image redesign failed; refusing non-Gemini poster");
+       }
+     }catch(e){aiStatus="gemini_image_error";console.error("Gemini image redesign failed",e instanceof Error?e.message:"unknown");throw new Error("Gemini image redesign failed; refusing non-Gemini poster");}
+   }else if(isTelegram&&!geminiKey&&openAiKey&&sourceImageUrl&&!apiNoCredits){
      try{
        const aiResponse=await fetch("https://api.openai.com/v1/images/edits",{
          method:"POST",headers:{"Authorization":"Bearer "+openAiKey,"Content-Type":"application/json"},
