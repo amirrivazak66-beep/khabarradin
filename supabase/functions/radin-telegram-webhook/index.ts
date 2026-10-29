@@ -352,9 +352,15 @@ Deno.serve(async (req: Request) => {
   try { workerResult = await worker.json(); } catch {}
   if (!worker.ok || !workerResult.ok || !workerResult.results?.some((row: any) => row.id === itemId && row.ok)) {
     console.error("Graphic generation failed", worker.status, JSON.stringify(workerResult).slice(0, 500));
-    const headlineUnavailable = (workerResult.results || []).some((row: any) => row.id === itemId && /AI headline unavailable/i.test(String(row.error || "")));
+    const failedItem = (workerResult.results || []).find((row: any) => row.id === itemId);
+    const headlineUnavailable = /AI headline unavailable/i.test(String(failedItem?.error || ""));
+    const headlineMessage = failedItem?.ai_status === "service_busy"
+      ? "مدل رایگان Gemini موقتاً شلوغ است؛ کلید ثبت شده و خبر بدون تیتر منتشر نمی‌شود. چند دقیقه بعد همین خبر را دوباره بفرست."
+      : failedItem?.ai_status === "rate_limited"
+      ? "سهمیهٔ درخواست رایگان Gemini فعلاً به سقف رسیده است؛ خبر بدون تیتر منتشر نمی‌شود. بعداً دوباره تلاش کن."
+      : "ساخت تیتر Gemini ناموفق بود؛ خبر بدون تیتر منتشر نمی‌شود.";
     await telegram("sendMessage", { chat_id: chatId, text: headlineUnavailable
-      ? "تیتر هوش مصنوعی آماده نشد؛ پوستر بدون تیتر ساخته یا منتشر نمی‌شود. تنظیم GEMINI_API_KEY را بررسی کنید."
+      ? headlineMessage
       : "خبر ثبت شد، اما ساخت پوستر کامل نشد. در استودیو گرافیک آن را بررسی کنید؛ انتشار انجام نشده است." });
     return json({ ok: true });
   }
