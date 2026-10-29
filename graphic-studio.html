@@ -101,7 +101,7 @@ ctx.fillStyle='#e5bd55';ctx.fillRect(0,151,W,4);
 ctx.globalAlpha=.10;for(let r=0;r<4;r++)for(let c=0;c<16;c++){ctx.fillStyle='#8bb8ff';ctx.beginPath();ctx.arc(25+c*27,15+r*27,4,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
 ctx.fillStyle='#fff';ctx.textAlign='left';ctx.direction='ltr';ctx.font='700 31px Arial,sans-serif';ctx.fillText('khabarradin.ir',55,92);
 ctx.fillStyle='rgba(255,255,255,.65)';ctx.fillRect(320,48,2,58);
-const headerDate=(()=>{const raw=activeItem?.pub_date; if(!raw)return 'تاریخ نامشخص';const d=new Date(raw);if(Number.isNaN(d.getTime()))return 'تاریخ نامشخص';try{return new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Tehran'}).format(d)}catch(_){return d.toLocaleDateString('fa-IR')}})();
+const headerDate=(()=>{const raw=activeItem?.pub_date; if(!raw)return 'تاریخ نامشخص';const d=new Date(raw);if(Number.isNaN(d.getTime()))return 'تاریخ نامشخص';try{const p=new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-arabext',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Tehran'}).formatToParts(d);const get=k=>p.find(x=>x.type===k)?.value||'';return get('day')+' '+get('month')+' '+get('year')}catch(_){return d.toLocaleDateString('fa-IR')}})();
 ctx.fillStyle='#fff';ctx.textAlign='right';ctx.direction='rtl';ctx.font='700 29px Vazirmatn,Tahoma,sans-serif';ctx.fillText(headerDate,850,92);
 if(logoImg){ctx.drawImage(logoImg,925,0,155,155)}
 ctx.fillStyle='#e9bd4f';roundRect(ctx,735,550,300,72,36,'#e9bd4f');ctx.fillStyle='#08265e';ctx.font='800 30px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='center';ctx.direction='rtl';ctx.fillText($('category').value,885,596);
@@ -121,7 +121,7 @@ ctx.strokeStyle='#dce2ec';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(70,1115);ct
 // Timestamp/date are sourced from RSS pub_date, not generated from current time.
 let dateText='تاریخ نامشخص';
 const rawDate=activeItem?.pub_date;
-if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime())){try{dateText=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Tehran'}).format(d)}catch(_){dateText=d.toLocaleDateString('fa-IR')}}}
+if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime())){try{const p=new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-arabext',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Tehran'}).formatToParts(d);const get=k=>p.find(x=>x.type===k)?.value||'';dateText=get('day')+' '+get('month')+' '+get('year')}catch(_){dateText=d.toLocaleDateString('fa-IR')}}}
 ctx.fillStyle='#102b62';ctx.font='700 23px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';ctx.fillText('منبع: '+($('source').value.trim()||activeItem?.source_name||'خبر رادین'),990,1160);
 ctx.textAlign='center';ctx.font='700 22px Vazirmatn,Tahoma,sans-serif';ctx.fillText(dateText+'  |  khabarradin.ir',500,1160);
 // Branded footer
