@@ -106,13 +106,13 @@ roundRect(ctx,28,155,1024,405,28,'#fff');ctx.save();ctx.beginPath();ctx.roundRec
 if(photoImg)drawCover(photoImg,38,165,1004,385);else{const p=ctx.createLinearGradient(38,165,1042,550);p.addColorStop(0,'#dce6fa');p.addColorStop(1,'#aabce4');ctx.fillStyle=p;ctx.fillRect(38,165,1004,385);ctx.fillStyle='#15336f';ctx.font='800 42px Vazirmatn,Tahoma';ctx.textAlign='center';ctx.fillText('تصویر خبر در دسترس نیست',540,370)}ctx.restore();
 // Headline panel
 roundRect(ctx,0,585,1080,260,28,'#08265e');ctx.fillStyle='#e9bd4f';ctx.fillRect(1034,625,8,150);
-const title=$('title').value.trim()||'تیتر خبر';const lines=wrapText(title,900,'800 50px Vazirmatn,Tahoma,sans-serif').slice(0,3);ctx.fillStyle='#fff';ctx.textAlign='right';ctx.direction='rtl';ctx.font='800 50px Vazirmatn,Tahoma,sans-serif';let ty=665;for(const line of lines){ctx.fillText(line,1005,ty);ty+=61}
+const title=$('title').value.trim()||'تیتر خبر';const lines=wrapText(title,900,'800 72px Vazirmatn,Tahoma,sans-serif').slice(0,3);ctx.fillStyle='#fff';ctx.strokeStyle='#f5bd35';ctx.lineWidth=3;ctx.lineJoin='round';ctx.textAlign='right';ctx.direction='rtl';ctx.font='800 72px Vazirmatn,Tahoma,sans-serif';let ty=700;for(const line of lines){ctx.strokeText(line,1005,ty);ctx.fillText(line,1005,ty);ty+=76}
 // Summary card
 roundRect(ctx,24,865,1032,340,26,'#fff');ctx.fillStyle='#d3a73f';ctx.fillRect(1018,900,7,245);
 const summary=String(activeItem?.summary||'').replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ').trim();
-const summaryLines=wrapText(summary,900,'500 29px Vazirmatn,Tahoma,sans-serif').slice(0,5);
-ctx.fillStyle='#102b62';ctx.font='500 29px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';let sy=925;
-if(summaryLines.length){for(const line of summaryLines){ctx.fillText(line,995,sy);sy+=43}}else{ctx.font='500 26px Vazirmatn,Tahoma,sans-serif';ctx.fillText('خبر رادین | آخرین اخبار ایران و جهان',995,935);sy=980}
+const summaryLines=wrapText(summary,900,'600 56px Vazirmatn,Tahoma,sans-serif').slice(0,4);
+ctx.fillStyle='#102b62';ctx.font='600 56px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';let sy=990;
+if(summaryLines.length){for(const line of summaryLines){ctx.fillText(line,995,sy);sy+=70}}else{ctx.font='600 48px Vazirmatn,Tahoma,sans-serif';ctx.fillText('خبر رادین | آخرین اخبار ایران و جهان',995,1000);sy=1070}
 ctx.strokeStyle='#dce2ec';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(70,1115);ctx.lineTo(1000,1115);ctx.stroke();
 // Timestamp/date are sourced from RSS pub_date, not generated from current time.
 let dateText='تاریخ نامشخص',timeText='زمان نامشخص';
