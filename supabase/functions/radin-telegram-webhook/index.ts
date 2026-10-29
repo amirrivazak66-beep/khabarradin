@@ -352,7 +352,10 @@ Deno.serve(async (req: Request) => {
   try { workerResult = await worker.json(); } catch {}
   if (!worker.ok || !workerResult.ok || !workerResult.results?.some((row: any) => row.id === itemId && row.ok)) {
     console.error("Graphic generation failed", worker.status, JSON.stringify(workerResult).slice(0, 500));
-    await telegram("sendMessage", { chat_id: chatId, text: "خبر ثبت شد، اما ساخت پوستر کامل نشد. در استودیو گرافیک آن را بررسی کنید؛ انتشار انجام نشده است." });
+    const headlineUnavailable = (workerResult.results || []).some((row: any) => row.id === itemId && /AI headline unavailable/i.test(String(row.error || "")));
+    await telegram("sendMessage", { chat_id: chatId, text: headlineUnavailable
+      ? "تیتر هوش مصنوعی آماده نشد؛ پوستر بدون تیتر ساخته یا منتشر نمی‌شود. تنظیم GEMINI_API_KEY را بررسی کنید."
+      : "خبر ثبت شد، اما ساخت پوستر کامل نشد. در استودیو گرافیک آن را بررسی کنید؛ انتشار انجام نشده است." });
     return json({ ok: true });
   }
 
