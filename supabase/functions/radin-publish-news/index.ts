@@ -186,16 +186,16 @@ Deno.serve(async (req: Request) => {
       return (ord[day] || get("day")) + " " + get("month") + " " + (year >= 1400 && year < 1500 ? card(year - 1000) : card(year));
     } catch { return ""; }
   })();
-  // One Telegram post only: photo caption uses the available 1024-character limit.
+  // One image post: Telegram-forwarded items use body-only text; the headline stays out of the caption.
   const titleCaption = displayTitle;
   const captionMessage = [
-    "<b>" + escapeHtml(titleCaption) + "</b>",
-    category ? "🏷️ <b>" + escapeHtml(category) + "</b>" : "",
+    item.source_type === "telegram" ? "" : "<b>" + escapeHtml(titleCaption) + "</b>",
+    item.source_type === "telegram" && category === "عمومی" ? "" : (category ? "🏷️ <b>" + escapeHtml(category) + "</b>" : ""),
     fullStory ? "📝 " + escapeHtml(fullStory) : "",
     dateLabel ? "🗓️ " + escapeHtml(dateLabel) : "",
     item.source_type === "telegram" ? "" : "🔎 منبع: " + escapeHtml(sourceName),
     item.source_type === "telegram" ? "" : "🌐 khabarradin.ir",
-
+    "📣 @radinnews",
   ].filter(Boolean).join("\n\n");
   // Telegram photo captions are limited to 1024 characters. Never silently truncate or send a second post.
   if (captionMessage.length > 1024) {
@@ -203,64 +203,7 @@ Deno.serve(async (req: Request) => {
   }
   const imageUrl = approvedGraphicUrl;
   const hasImage = /^https?:\/\//i.test(imageUrl);
-  let generatedPhoto: Blob | null = null;
-  let generatedImageB64: string | null = null;
-  // Create a topic-matched editorial visual on manual approval. If image generation is unavailable,
-  // retain the original RSS image so a billing/configuration issue does not block the news post.
-  if (openAiKey) {
-    try {
-      const imagePrompt = [
-        "Create a polished editorial news illustration for a Persian-language news channel.",
-        "Topic/headline: " + title,
-        "Summary/context: " + summary,
-        "Category: " + category,
-        "Visual style: professional contemporary newsroom graphic, realistic editorial illustration, strong composition, high contrast, clean background, blue and white palette with restrained gold accents.",
-        "Do not include any text, letters, numbers, logos, watermarks, flags with invented symbols, or fake news labels.",
-        "Depict the reported subject accurately and neutrally; do not invent identifiable people or imply unverified events."
-      ].join("\n");
-      let imageResponse: Response;
-      if (hasImage) {
-        const sourceResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(12000) });
-        if (!sourceResponse.ok) throw new Error("Source image download failed: " + sourceResponse.status);
-        const sourceType = sourceResponse.headers.get("content-type") || "image/jpeg";
-        if (!sourceType.startsWith("image/")) throw new Error("Source URL did not return an image");
-        const sourceBlob = await sourceResponse.blob();
-        if (sourceBlob.size > 15 * 1024 * 1024) throw new Error("Source image too large");
-        const form = new FormData();
-        form.append("model", "gpt-image-1");
-        form.append("prompt", imagePrompt + "\nTransform the supplied source photo into an editorial news visual. Preserve the real subject and key facts; do not alter documentary evidence or the identity of real people. Add tasteful graphic treatment without text.");
-        form.append("size", "1024x1024");
-        form.append("image", sourceBlob, "source-image");
-        imageResponse = await fetch("https://api.openai.com/v1/images/edits", {
-          method: "POST", headers: { "Authorization": `Bearer ${openAiKey}` }, body: form
-        });
-      } else {
-        imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${openAiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "gpt-image-1", prompt: imagePrompt, size: "1024x1024", n: 1 })
-        });
-      }
-      if (imageResponse.ok) {
-        const imageData = await imageResponse.json();
-        generatedImageB64 = imageData?.data?.[0]?.b64_json || null;
-        if (generatedImageB64) {
-          const binary = atob(generatedImageB64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          generatedPhoto = new Blob([bytes], { type: "image/png" });
-        } else {
-          console.error("Image generation returned no image data");
-        }
-      } else {
-        let imageError = "";
-        try { const body = await imageResponse.json(); imageError = String(body?.error?.message || ""); } catch {}
-        console.error("Editorial image generation failed", imageResponse.status, imageError);
-      }
-    } catch (imageError) {
-      console.error("Editorial image generation failed; using source image", String(imageError));
-    }
-  }
+  const generatedPhoto: Blob | null = null;
   const sendAsPhoto = Boolean(generatedPhoto) || hasImage;
   let tg: Response;
   if (sendAsPhoto && generatedPhoto) {
