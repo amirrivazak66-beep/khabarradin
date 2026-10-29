@@ -115,11 +115,11 @@ ctx.fillStyle='#102b62';ctx.font='600 56px Vazirmatn,Tahoma,sans-serif';ctx.text
 if(summaryLines.length){for(const line of summaryLines){ctx.fillText(line,995,sy);sy+=70}}else{ctx.font='600 48px Vazirmatn,Tahoma,sans-serif';ctx.fillText('خبر رادین | آخرین اخبار ایران و جهان',995,1000);sy=1070}
 ctx.strokeStyle='#dce2ec';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(70,1115);ctx.lineTo(1000,1115);ctx.stroke();
 // Timestamp/date are sourced from RSS pub_date, not generated from current time.
-let dateText='تاریخ نامشخص',timeText='زمان نامشخص';
+let dateText='تاریخ نامشخص';
 const rawDate=activeItem?.pub_date;
-if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime())){try{dateText=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Tehran'}).format(d);timeText=new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Tehran'}).format(d)}catch(_){dateText=d.toLocaleDateString('fa-IR');timeText=d.toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})}}}
+if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime())){try{dateText=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Tehran'}).format(d)}catch(_){dateText=d.toLocaleDateString('fa-IR')}}}
 ctx.fillStyle='#102b62';ctx.font='700 23px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='right';ctx.fillText('منبع: '+($('source').value.trim()||activeItem?.source_name||'خبر رادین'),990,1160);
-ctx.textAlign='center';ctx.font='600 22px Vazirmatn,Tahoma,sans-serif';ctx.fillText(dateText+'  |  '+timeText,500,1160);
+ctx.textAlign='center';ctx.font='700 22px Vazirmatn,Tahoma,sans-serif';ctx.fillText(dateText+'  |  khabarradin.ir',500,1160);
 // Branded footer
 ctx.fillStyle='#061b4b';ctx.fillRect(0,1225,W,125);ctx.fillStyle='#e5bd55';ctx.fillRect(0,1225,W,5);
 ctx.fillStyle='#fff';ctx.textAlign='left';ctx.font='800 29px Arial,sans-serif';ctx.fillText('@radinnews',70,1290);ctx.fillStyle='#70c7ff';ctx.fillRect(330,1250,3,55);ctx.fillStyle='#fff';ctx.textAlign='right';ctx.direction='rtl';ctx.font='500 25px Vazirmatn,Tahoma,sans-serif';ctx.fillText('آخرین اخبار ایران و جهان',1000,1290);
