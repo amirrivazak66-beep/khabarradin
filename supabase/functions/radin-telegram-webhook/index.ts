@@ -373,9 +373,9 @@ Deno.serve(async (req: Request) => {
     ? "⚠️ بازطراحی AI به‌موقع پاسخ نداد؛ پوستر با قالب رادین آماده شد."
     : aiStatus === "api_error"
     ? "⚠️ بازطراحی AI ناموفق بود؛ پوستر با قالب رادین آماده شد."
-    : "";\n  const previewText = [
+    : "";
+  const previewText = [
     "پیش‌نمایش خبر — هنوز منتشر نشده",
-
     ready.title,
     ready.summary ? "\n" + ready.summary : "",
     ...(ready.source_type === "telegram" ? [] : ["\nمنبع: " + (ready.source_name || sourceName)]),
