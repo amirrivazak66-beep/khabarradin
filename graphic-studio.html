@@ -95,11 +95,15 @@ function drawCover(im,x,y,w,h){if(!im)return;const scale=Math.max(w/im.width,h/i
 function render(){
 const W=1080,H=1350;ctx.clearRect(0,0,W,H);
 const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#12377f');bg.addColorStop(1,'#061b4b');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#e5bd55';ctx.fillRect(0,0,W,14);
-ctx.globalAlpha=.13;for(let r=0;r<8;r++)for(let c=0;c<9;c++){ctx.fillStyle='#64a8ff';ctx.beginPath();ctx.arc(45+c*28,900+r*28,5,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
-// Header: category and original brand logo asset, preserved without redraw.
-roundRect(ctx,740,28,300,112,24,'#08265e');
-if(logoImg){const maxW=270,maxH=94,scale=Math.min(maxW/logoImg.width,maxH/logoImg.height);const lw=logoImg.width*scale,lh=logoImg.height*scale;ctx.drawImage(logoImg,1020-lw,37+(94-lh)/2,lw,lh)}
+// Header zone uses the exact background color of the original square logo so its background disappears into the header.
+ctx.fillStyle='#2f4eaa';ctx.fillRect(0,0,W,155);
+ctx.fillStyle='#e5bd55';ctx.fillRect(0,151,W,4);
+ctx.globalAlpha=.10;for(let r=0;r<4;r++)for(let c=0;c<16;c++){ctx.fillStyle='#8bb8ff';ctx.beginPath();ctx.arc(25+c*27,15+r*27,4,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
+ctx.fillStyle='#fff';ctx.textAlign='left';ctx.direction='ltr';ctx.font='700 31px Arial,sans-serif';ctx.fillText('khabarradin.ir',55,92);
+ctx.fillStyle='rgba(255,255,255,.65)';ctx.fillRect(320,48,2,58);
+const headerDate=(()=>{const raw=activeItem?.pub_date; if(!raw)return 'تاریخ نامشخص';const d=new Date(raw);if(Number.isNaN(d.getTime()))return 'تاریخ نامشخص';try{return new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Tehran'}).format(d)}catch(_){return d.toLocaleDateString('fa-IR')}})();
+ctx.fillStyle='#fff';ctx.textAlign='right';ctx.direction='rtl';ctx.font='700 29px Vazirmatn,Tahoma,sans-serif';ctx.fillText(headerDate,850,92);
+if(logoImg){ctx.drawImage(logoImg,925,0,155,155)}
 ctx.fillStyle='#e9bd4f';roundRect(ctx,735,550,300,72,36,'#e9bd4f');ctx.fillStyle='#08265e';ctx.font='800 30px Vazirmatn,Tahoma,sans-serif';ctx.textAlign='center';ctx.direction='rtl';ctx.fillText($('category').value,885,596);
 // Photo
 roundRect(ctx,28,155,1024,405,28,'#fff');ctx.save();ctx.beginPath();ctx.roundRect(38,165,1004,385,22);ctx.clip();
