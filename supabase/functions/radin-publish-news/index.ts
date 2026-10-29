@@ -15,20 +15,25 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
 
+  const telegramSecret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
+  const suppliedTelegramSecret = req.headers.get("x-radin-telegram-secret") || "";
+  const telegramAdmin = Boolean(telegramSecret) && suppliedTelegramSecret.length === telegramSecret.length && suppliedTelegramSecret === telegramSecret;
   const authHeader = req.headers.get("authorization") || "";
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Server configuration missing" }, 500);
-  if (!authHeader.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
+  if (!telegramAdmin && !authHeader.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
 
   const authClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
     auth: { persistSession: false, autoRefreshToken: false }
   });
-  const { data: authData, error: authError } = await authClient.auth.getUser();
-  if (authError || !authData.user || authData.user.email !== "amir.rivazak66@gmail.com") {
-    return json({ error: "Admin only" }, 403);
+  if (!telegramAdmin) {
+    const { data: authData, error: authError } = await authClient.auth.getUser();
+    if (authError || !authData.user || authData.user.email !== "amir.rivazak66@gmail.com") {
+      return json({ error: "Admin only" }, 403);
+    }
   }
 
   let payload: { id?: string; action?: string };
