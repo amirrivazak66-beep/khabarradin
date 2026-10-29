@@ -110,15 +110,24 @@ Deno.serve(async (req: Request) => {
       console.error("Editorial rewrite failed; keeping original RSS text", String(error));
     }
   }
-  const stripTelegramTrace = (value: string) => value
-    .replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "")
-    .split(/\r?\n/)
-    .filter((line: string) => !/^\s*(?:[🔗🌐📢📰]\s*)?(?:منبع(?:\s+خبر)?|لینک(?:\s+منبع)?|source|channel)\s*[:：-]/i.test(line))
-    .map((line: string) => line.replace(/(^|\s)@[a-z0-9_]{3,}/gi, "$1").trim())
-    .filter(Boolean)
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const stripSourceTagAndAdjacentEmoji = (value: string, handle: string) => {
+    const username = handle.replace(/^@/, "");
+    if (!/^[a-z0-9_]+$/i.test(username)) return value;
+    const emoji = "(?:\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E)?(?:\\u{1F3FB}-\\u{1F3FF})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E)?(?:\\u{1F3FB}-\\u{1F3FF})?)*|\\p{Regional_Indicator}{2})";
+    const tagPattern = new RegExp("(?:" + emoji + "[ \\t]*)*@" + username + "(?:[ \\t]*" + emoji + ")*", "giu");
+    return value.replace(tagPattern, "");
+  };
+  const stripTelegramTrace = (value: string) => {
+    let cleaned = value.replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "");
+    if (rawSource.startsWith("@")) cleaned = stripSourceTagAndAdjacentEmoji(cleaned, rawSource);
+    return cleaned
+      .split(/\r?\n/)
+      .filter((line: string) => !/^\s*(?:[🔗🌐📢📰]\s*)?(?:منبع(?:\s+خبر)?|لینک(?:\s+منبع)?|source|channel)\s*[:：-]/i.test(line))
+      .filter(Boolean)
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  };
   if (item.source_type === "telegram") {
     title = stripTelegramTrace(title);
     summary = stripTelegramTrace(summary);
