@@ -119,7 +119,8 @@ Deno.serve(async (req: Request) => {
   };
   const stripTelegramTrace = (value: string) => {
     let cleaned = value.replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "");
-    if (rawSource.startsWith("@")) cleaned = stripSourceTagAndAdjacentEmoji(cleaned, rawSource);
+    const sourceHandle = String(item.source_name || "");
+    if (sourceHandle.startsWith("@")) cleaned = stripSourceTagAndAdjacentEmoji(cleaned, sourceHandle);
     return cleaned
       .split(/\r?\n/)
       .filter((line: string) => !/^\s*(?:[🔗🌐📢📰]\s*)?(?:منبع(?:\s+خبر)?|لینک(?:\s+منبع)?|source|channel)\s*[:：-]/i.test(line))
