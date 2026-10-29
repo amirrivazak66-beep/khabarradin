@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
   if (command === "/start") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی خبر، لینک منبع را بفرستید یا خبر دارای لینک و تصویر را برای ربات فوروارد کنید. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n/help — راهنما",
+      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n/help — راهنما",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -134,7 +134,7 @@ Deno.serve(async (req: Request) => {
   if (command === "/help") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "راهنمای ثبت دستی خبر:\n۱) لینک یک خبر را برای ربات بفرستید؛ یا متن/لینک خبر را فوروارد کنید.\n۲) اگر صفحه تصویر شاخص نداشته باشد، همان خبر را همراه عکس فوروارد کنید.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nانتشار خودکار فعال نیست. لینک منبع در کپشن کانال درج نمی‌شود.",
+      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس فوروارد کنید؛ برای فوروارد عکس، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nانتشار خودکار فعال نیست. لینک منبع در کپشن کانال درج نمی‌شود.",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -159,24 +159,34 @@ Deno.serve(async (req: Request) => {
 
   const textLink = (message.entities || message.caption_entities || []).find((entity: any) => entity.type === "text_link")?.url;
   const foundUrl = textLink || messageText.match(/https?:\/\/[^\s<>]+/i)?.[0]?.replace(/[)\],.!؟،]+$/g, "");
-  let sourceUrl: URL;
-  try {
-    sourceUrl = new URL(String(foundUrl || ""));
-    if (!["http:", "https:"].includes(sourceUrl.protocol) || sourceUrl.username || sourceUrl.password ||
-        sourceUrl.hostname === "localhost" || sourceUrl.hostname.endsWith(".local") ||
-        sourceUrl.hostname.endsWith(".internal") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(sourceUrl.hostname) ||
-        (sourceUrl.port && sourceUrl.port !== "80" && sourceUrl.port !== "443")) throw new Error("unsafe URL");
-    sourceUrl.hash = "";
-  } catch {
+  let sourceUrl: URL | null = null;
+  if (foundUrl) {
+    try {
+      sourceUrl = new URL(String(foundUrl));
+      if (!["http:", "https:"].includes(sourceUrl.protocol) || sourceUrl.username || sourceUrl.password ||
+          sourceUrl.hostname === "localhost" || sourceUrl.hostname.endsWith(".local") ||
+          sourceUrl.hostname.endsWith(".internal") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(sourceUrl.hostname) ||
+          (sourceUrl.port && sourceUrl.port !== "80" && sourceUrl.port !== "443")) throw new Error("unsafe URL");
+      sourceUrl.hash = "";
+    } catch {
+      sourceUrl = null;
+    }
+  }
+  const manualTelegramPhoto = !sourceUrl && Boolean(message.photo?.length);
+  if (!sourceUrl && !manualTelegramPhoto) {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "لینک عمومی خبر پیدا نشد. یک URL با http یا https بفرستید؛ یا متن خبر را همراه لینک و عکس فوروارد کنید.",
+      text: "لینک پیدا نشد. لینک خبر را بفرستید، یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس بدون لینک هم پذیرفته می‌شود.",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
   }
-
-  const canonicalUrl = sourceUrl.toString();
+  const forwardOrigin = message.forward_origin;
+  const forwardChat = forwardOrigin?.chat || forwardOrigin?.sender_chat || message.forward_from_chat;
+  const forwardMessageId = forwardOrigin?.message_id || message.forward_from_message_id;
+  const canonicalUrl = sourceUrl
+    ? sourceUrl.toString()
+    : "telegram:forwarded/" + String(forwardChat?.id || chatId) + "/" + String(forwardMessageId || message.message_id || update.update_id);
   const { data: existing } = await db.from("news_items")
     .select("id,published,review_status,graphic_image_url").eq("source_url", canonicalUrl).maybeSingle();
   if (existing?.published) {
@@ -189,15 +199,17 @@ Deno.serve(async (req: Request) => {
   let metaDescription = "";
   let metaImage = "";
   let metaDate = "";
-  try {
-    const page = await fetch(canonicalUrl, {
-      signal: AbortSignal.timeout(10000),
-      headers: { "user-agent": "Mozilla/5.0 (compatible; RadinNewsBot/1.0)", "accept": "text/html,application/xhtml+xml" },
-    });
-    const contentType = page.headers.get("content-type") || "";
-    if (page.ok && contentType.includes("text/html")) html = (await page.text()).slice(0, 1500000);
-  } catch (error) {
-    console.warn("Source page fetch failed", String(error));
+  if (sourceUrl) {
+    try {
+      const page = await fetch(canonicalUrl, {
+        signal: AbortSignal.timeout(10000),
+        headers: { "user-agent": "Mozilla/5.0 (compatible; RadinNewsBot/1.0)", "accept": "text/html,application/xhtml+xml" },
+      });
+      const contentType = page.headers.get("content-type") || "";
+      if (page.ok && contentType.includes("text/html")) html = (await page.text()).slice(0, 1500000);
+    } catch (error) {
+      console.warn("Source page fetch failed", String(error));
+    }
   }
   const decode = (value: string) => value.replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   const meta = (key: string) => {
@@ -211,13 +223,18 @@ Deno.serve(async (req: Request) => {
   metaDescription = meta("og:description") || meta("description") || meta("twitter:description");
   metaImage = meta("og:image") || meta("twitter:image") || meta("twitter:image:src");
   metaDate = meta("article:published_time") || meta("datePublished");
-  try { if (metaImage) metaImage = new URL(metaImage, canonicalUrl).toString(); } catch { metaImage = ""; }
+  try { if (metaImage && sourceUrl) metaImage = new URL(metaImage, canonicalUrl).toString(); } catch { metaImage = ""; }
 
-  const manualText = messageText.replace(/^\/submit(?:@\w+)?\s*/i, "").replace(canonicalUrl, "").trim();
+  const manualText = messageText.replace(/^\/submit(?:@\w+)?\s*/i, "").replace(String(foundUrl || ""), "").trim();
   const manualLines = manualText.split(/\r?\n/).map((line: string) => line.trim()).filter(Boolean);
-  const title = (manualLines[0] || metaTitle || sourceUrl.hostname).slice(0, 500);
+  const forwardSource = String(forwardChat?.username ? "@" + forwardChat.username : forwardChat?.title || message.forward_from?.first_name || message.forward_sender_name || "منبع تلگرامی");
+  const title = (manualLines[0] || metaTitle || "").slice(0, 500);
   const summary = (manualLines.slice(1).join("\n") || metaDescription || "").slice(0, 5000);
-  const sourceName = sourceUrl.hostname.replace(/^www\./i, "");
+  const sourceName = sourceUrl ? sourceUrl.hostname.replace(/^www\./i, "") : forwardSource;
+  if (!title) {
+    await telegram("sendMessage", { chat_id: chatId, text: "عکس دریافت شد، اما عنوان خبر در کپشن نیست. لطفاً همان عکس را با عنوان خبر در کپشن دوباره فوروارد کنید." });
+    return json({ ok: true });
+  }
   let imageUrl = metaImage;
 
   if (!imageUrl && message.photo?.length) {
@@ -248,7 +265,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const publishedAt = Number.isFinite(Date.parse(metaDate)) ? new Date(metaDate).toISOString()
-    : new Date(Number(message.date || Date.now() / 1000) * 1000).toISOString();
+    : new Date(Number(forwardOrigin?.date || message.date || Date.now() / 1000) * 1000).toISOString();
   let itemId = existing?.id;
   if (!itemId) {
     const { data: inserted, error } = await db.from("news_items").insert({
@@ -260,7 +277,7 @@ Deno.serve(async (req: Request) => {
       image_url: imageUrl,
       source_url: canonicalUrl,
       source_name: sourceName,
-      source_type: "website",
+      source_type: sourceUrl ? "website" : "telegram",
       pub_date: publishedAt,
       published: false,
       review_status: "pending",
@@ -274,7 +291,7 @@ Deno.serve(async (req: Request) => {
   } else {
     const { error } = await db.from("news_items").update({
       title, summary: summary || null, image_url: imageUrl, source_name: sourceName,
-      original_title: title, original_summary: summary || null, source_type: "website",
+      original_title: title, original_summary: summary || null, source_type: sourceUrl ? "website" : "telegram",
       pub_date: publishedAt, review_status: "pending", graphic_image_url: null, original_image_url: null, updated_at: new Date().toISOString(),
     }).eq("id", itemId).eq("published", false);
     if (error) {
