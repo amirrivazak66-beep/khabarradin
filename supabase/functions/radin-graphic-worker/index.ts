@@ -110,8 +110,8 @@ Deno.serve(async(req)=>{
    const incompleteEnding=/(?:^|\s)(?:و|یا|که|اما|از|به|در|با|برای|تا|می‌شود|خواهد|درباره|پیش‌بینی)\s*$/u;
    const completeClauses=rawSummary.split(/[.!?؟\n،؛]+/).map(x=>cleanHeadline(x)).filter(x=>x.length>=18&&x.length<=100&&!incompleteEnding.test(x));
    const extractiveHeadline=firstSentence&&(rawTitle.length>48||sourceLead||incompleteEnding.test(rawTitle))?(completeClauses[0]||firstSentence):(rawTitle||completeClauses[0]||firstSentence||"خبر رادین");
-   let graphicHeadline=extractiveHeadline;
-   let headlineStatus=firstSentence&&extractiveHeadline===firstSentence?"extractive":"original";
+   let graphicHeadline="";
+   let headlineStatus="unavailable";
    let apiNoCredits=false;
    let aiStatus=isTelegram?(openAiKey?"api_error":"missing_key"):"not_applicable";
    if(isTelegram&&openAiKey){
@@ -167,8 +167,7 @@ Deno.serve(async(req)=>{
    }else if(isTelegram&&apiNoCredits){aiStatus="no_credits";}
    const allHeadlineLines=wrap(graphicHeadline,18,20);
    if(isTelegram&&allHeadlineLines.length>6){
-     const clauses=[firstSentence,...firstSentence.split(/[،؛:]/).map(x=>cleanHeadline(x))].filter(x=>x&&wrap(x,18,6).length<=6);
-     if(clauses.length){graphicHeadline=clauses.sort((a,b)=>a.length-b.length)[0];headlineStatus="extractive";}
+     graphicHeadline="";
    }
    const titleLines=wrap(graphicHeadline,isTelegram?18:22,isTelegram?6:2);
    const titleSvg=isTelegram
