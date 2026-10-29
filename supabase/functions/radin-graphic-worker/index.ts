@@ -168,6 +168,7 @@ Deno.serve(async(req)=>{
        }
      }catch(e){console.error("AI headline generation failed",e instanceof Error?e.message:"unknown");}
    }
+   if(isTelegram&&(headlineStatus!=="ai"||!graphicHeadline)){throw new Error("AI headline unavailable; refusing titleless graphic");}
    if(isTelegram&&openAiKey&&sourceImageUrl&&!apiNoCredits){
      try{
        const aiResponse=await fetch("https://api.openai.com/v1/images/edits",{
@@ -247,7 +248,7 @@ Deno.serve(async(req)=>{
    const {error:upErr}=await db.storage.from("radin-graphics").upload(path,png,{contentType:"image/png",upsert:true});
    if(upErr)throw upErr;
    const {data:pub}=db.storage.from("radin-graphics").getPublicUrl(path);
-   const {error:updErr}=await db.from("news_items").update({graphic_image_url:pub.publicUrl,original_image_url:sourceImageUrl,updated_at:new Date().toISOString()}).eq("id",item.id);
+   const {error:updErr}=await db.from("news_items").update({graphic_image_url:pub.publicUrl,original_image_url:sourceImageUrl,...(isTelegram?{rewritten_title:graphicHeadline}:{}),updated_at:new Date().toISOString()}).eq("id",item.id);
    if(updErr)throw updErr;
    results.push({id:item.id,ok:true,ai_redesigned:aiStatus==="redesigned",ai_status:aiStatus,headline_status:headlineStatus});
   }catch(e){results.push({id:item.id,ok:false,error:e instanceof Error?e.message:"unknown"});}
