@@ -365,20 +365,17 @@ Deno.serve(async (req: Request) => {
   }
   const workerItemResult = workerResult.results.find((row: any) => row.id === itemId);
   const aiStatus = String(workerItemResult?.ai_status || "not_applicable");
-  const designNote = aiStatus === "redesigned"
-    ? "🎨 تصویر با هوش مصنوعی بازطراحی شد."
-    : aiStatus === "no_credits"
-    ? "⚠️ اعتبار API تصویر تمام است؛ پوستر با قالب رادین آماده شد."
+  const designNote = aiStatus === "no_credits"
+    ? "⚠️ بازطراحی AI انجام نشد چون اعتبار API کافی نیست؛ پوستر با قالب رادین آماده شد."
     : aiStatus === "missing_key"
     ? "⚠️ کلید API تصویر تنظیم نشده؛ پوستر با قالب رادین آماده شد."
     : aiStatus === "timeout"
-    ? "⚠️ هوش مصنوعی به‌موقع پاسخ نداد؛ پوستر با قالب رادین آماده شد."
+    ? "⚠️ بازطراحی AI به‌موقع پاسخ نداد؛ پوستر با قالب رادین آماده شد."
     : aiStatus === "api_error"
-    ? "⚠️ بازطراحی هوشمند ناموفق بود؛ پوستر با قالب رادین آماده شد."
-    : "🎨 پوستر گرافیکی رادین آماده شد.";
-  const previewText = [
+    ? "⚠️ بازطراحی AI ناموفق بود؛ پوستر با قالب رادین آماده شد."
+    : "";\n  const previewText = [
     "پیش‌نمایش خبر — هنوز منتشر نشده",
-    designNote,
+
     ready.title,
     ready.summary ? "\n" + ready.summary : "",
     ...(ready.source_type === "telegram" ? [] : ["\nمنبع: " + (ready.source_name || sourceName)]),
@@ -398,6 +395,9 @@ Deno.serve(async (req: Request) => {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر آماده شد، اما ارسال پیش‌نمایش در گفتگو ناموفق بود. از پنل مدیریت خبر را بررسی کنید." });
   } else {
     console.log("Manual story preview delivered", itemId, preview.result.result?.message_id || "unknown");
+  }
+  if (designNote) {
+    await telegram("sendMessage", { chat_id: chatId, text: designNote, disable_web_page_preview: true });
   }
   return json({ ok: true });
 });
