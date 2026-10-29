@@ -304,8 +304,10 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
 
-  const publishedAt = Number.isFinite(Date.parse(metaDate)) ? new Date(metaDate).toISOString()
-    : new Date(Number(forwardOrigin?.date || message.date || Date.now() / 1000) * 1000).toISOString();
+  const publishedAt = forwardedFromTelegram
+    ? new Date(Number(message.date || Date.now() / 1000) * 1000).toISOString()
+    : Number.isFinite(Date.parse(metaDate)) ? new Date(metaDate).toISOString()
+    : new Date(Number(message.date || Date.now() / 1000) * 1000).toISOString();
   let itemId = existing?.id;
   if (!itemId) {
     const { data: inserted, error } = await db.from("news_items").insert({
