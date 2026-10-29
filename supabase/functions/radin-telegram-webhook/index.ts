@@ -184,6 +184,7 @@ Deno.serve(async (req: Request) => {
   const forwardOrigin = message.forward_origin;
   const forwardChat = forwardOrigin?.chat || forwardOrigin?.sender_chat || message.forward_from_chat;
   const forwardMessageId = forwardOrigin?.message_id || message.forward_from_message_id;
+  const forwardedFromTelegram = Boolean(forwardOrigin || message.forward_from_chat || message.forward_from || message.forward_sender_name);
   const canonicalUrl = sourceUrl
     ? sourceUrl.toString()
     : "telegram:forwarded/" + String(forwardChat?.id || chatId) + "/" + String(forwardMessageId || message.message_id || update.update_id);
@@ -233,12 +234,32 @@ Deno.serve(async (req: Request) => {
   metaDate = meta("article:published_time") || meta("datePublished");
   try { if (metaImage && sourceUrl) metaImage = new URL(metaImage, canonicalUrl).toString(); } catch { metaImage = ""; }
 
-  const manualText = messageText.replace(/^\/submit(?:@\w+)?\s*/i, "").replace(String(foundUrl || ""), "").trim();
+  let manualText = messageText.replace(/^\/submit(?:@\w+)?\s*/i, "").replace(String(foundUrl || ""), "").trim();
+  if (forwardedFromTelegram) {
+    manualText = manualText
+      .replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "")
+      .split(/\r?\n/)
+      .filter((line: string) => !/^\s*(?:[🔗🌐📢📰]\s*)?(?:منبع(?:\s+خبر)?|لینک(?:\s+منبع)?|source|channel)\s*[:：-]/i.test(line))
+      .map((line: string) => line.replace(/(^|\s)@[a-z0-9_]{3,}/gi, "$1").trim())
+      .filter(Boolean)
+      .join("\n");
+  }
   const manualLines = manualText.split(/\r?\n/).map((line: string) => line.trim()).filter(Boolean);
   const forwardSource = String(forwardChat?.username ? "@" + forwardChat.username : forwardChat?.title || message.forward_from?.first_name || message.forward_sender_name || "منبع تلگرامی");
-  const title = (manualLines[0] || metaTitle || "").slice(0, 500);
-  const summary = (manualLines.slice(1).join("\n") || metaDescription || "").slice(0, 5000);
-  const sourceName = sourceUrl ? sourceUrl.hostname.replace(/^www\./i, "") : forwardSource;
+  const stripForwardTrace = (value: string) => value
+    .replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "")
+    .split(/\r?\n/)
+    .filter((line: string) => !/^\s*(?:[🔗🌐📢📰]\s*)?(?:منبع(?:\s+خبر)?|لینک(?:\s+منبع)?|source|channel)\s*[:：-]/i.test(line))
+    .map((line: string) => line.replace(/(^|\s)@[a-z0-9_]{3,}/gi, "$1").trim())
+    .filter(Boolean)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const titleCandidate = manualLines[0] || metaTitle || "";
+  const summaryCandidate = manualLines.slice(1).join("\n") || metaDescription || "";
+  const title = (forwardedFromTelegram ? stripForwardTrace(titleCandidate) : titleCandidate).slice(0, 500);
+  const summary = (forwardedFromTelegram ? stripForwardTrace(summaryCandidate) : summaryCandidate).slice(0, 5000);
+  const sourceName = forwardedFromTelegram ? forwardSource : (sourceUrl?.hostname.replace(/^www\./i, "") || forwardSource);
   if (!title) {
     await telegram("sendMessage", { chat_id: chatId, text: "عکس دریافت شد، اما عنوان خبر در کپشن نیست. لطفاً همان عکس را با عنوان خبر در کپشن دوباره فوروارد کنید." });
     return json({ ok: true });
@@ -285,7 +306,7 @@ Deno.serve(async (req: Request) => {
       image_url: imageUrl,
       source_url: canonicalUrl,
       source_name: sourceName,
-      source_type: sourceUrl ? "website" : "telegram",
+      source_type: forwardedFromTelegram ? "telegram" : (sourceUrl ? "website" : "telegram"),
       pub_date: publishedAt,
       published: false,
       review_status: "pending",
@@ -299,7 +320,7 @@ Deno.serve(async (req: Request) => {
   } else {
     const { error } = await db.from("news_items").update({
       title, summary: summary || null, image_url: imageUrl, source_name: sourceName,
-      original_title: title, original_summary: summary || null, source_type: sourceUrl ? "website" : "telegram",
+      original_title: title, original_summary: summary || null, source_type: forwardedFromTelegram ? "telegram" : (sourceUrl ? "website" : "telegram"),
       pub_date: publishedAt, review_status: "pending", graphic_image_url: null, original_image_url: null, updated_at: new Date().toISOString(),
     }).eq("id", itemId).eq("published", false);
     if (error) {
@@ -323,7 +344,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const { data: ready } = await db.from("news_items")
-    .select("title,summary,category,source_name,pub_date,graphic_image_url")
+    .select("title,summary,category,source_name,source_type,pub_date,graphic_image_url")
     .eq("id", itemId).maybeSingle();
   if (!ready?.graphic_image_url) {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر هنوز آماده نیست؛ خبر منتشر نشده است." });
@@ -333,7 +354,7 @@ Deno.serve(async (req: Request) => {
     "پیش‌نمایش خبر — هنوز منتشر نشده",
     ready.title,
     ready.summary ? "\n" + ready.summary : "",
-    "\nمنبع: " + (ready.source_name || sourceName),
+    ...(ready.source_type === "telegram" ? [] : ["\nمنبع: " + (ready.source_name || sourceName)]),
     "\nتاریخ: " + new Date(ready.pub_date || publishedAt).toLocaleDateString("fa-IR"),
   ].join("\n").slice(0, 950);
   const preview = await telegram("sendPhoto", {
