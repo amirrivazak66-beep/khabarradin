@@ -60,6 +60,8 @@ Deno.serve(async(req)=>{
  const results=[];
  try { await ensureWasm(); await ensureFonts(); } catch (e) { return new Response(JSON.stringify({error:"Graphic renderer initialization failed",detail:e instanceof Error?e.message:"unknown"}),{status:500,headers:cors}); }
  for(const item of items||[]){
+  let headlineStatus="unavailable";
+  let aiStatus="not_applicable";
   try{
    let imageData="";
    let logoData="";
@@ -111,9 +113,8 @@ Deno.serve(async(req)=>{
    const completeClauses=rawSummary.split(/[.!?؟\n،؛]+/).map(x=>cleanHeadline(x)).filter(x=>x.length>=18&&x.length<=100&&!incompleteEnding.test(x));
    const extractiveHeadline=firstSentence&&(rawTitle.length>48||sourceLead||incompleteEnding.test(rawTitle))?(completeClauses[0]||firstSentence):(rawTitle||completeClauses[0]||firstSentence||"خبر رادین");
    let graphicHeadline="";
-   let headlineStatus="unavailable";
    let apiNoCredits=false;
-   let aiStatus=isTelegram?(openAiKey?"api_error":"missing_key"):"not_applicable";
+   aiStatus=isTelegram?(openAiKey?"api_error":"missing_key"):"not_applicable";
    const geminiKey=Deno.env.get("GEMINI_API_KEY")||"";
    if(isTelegram&&geminiKey){
      try{
@@ -168,7 +169,10 @@ Deno.serve(async(req)=>{
        }
      }catch(e){console.error("AI headline generation failed",e instanceof Error?e.message:"unknown");}
    }
-   if(isTelegram&&(headlineStatus!=="ai"||!graphicHeadline)){throw new Error("AI headline unavailable; refusing titleless graphic");}
+   if(isTelegram&&(headlineStatus!=="ai"||!graphicHeadline)){
+     if(extractiveHeadline){graphicHeadline=extractiveHeadline;headlineStatus="source_fallback";}
+     else throw new Error("AI headline unavailable; refusing titleless graphic");
+   }
    const geminiImageEnabled=isTelegram&&Boolean(geminiKey)&&Deno.env.get("GEMINI_IMAGE_ENABLED")==="true";
    if(geminiImageEnabled&&!openAiKey&&sourceImageUrl){
      try{
