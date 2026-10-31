@@ -47,6 +47,31 @@ Deno.serve(async (req: Request) => {
   const answerCallback = async (id: string, text?: string) => {
     await telegram("answerCallbackQuery", { callback_query_id: id, text: text || "", show_alert: Boolean(text) });
   };
+  const showBotSettings = async (chatId: number | string, messageId?: number) => {
+    const { data: settings, error } = await db.from("bot_settings")
+      .select("channel_username,auto_publish")
+      .eq("id", "main").maybeSingle();
+    if (error || !settings) {
+      await telegram("sendMessage", { chat_id: chatId, text: "خواندن تنظیمات ربات ناموفق بود. کمی بعد دوباره تلاش کنید." });
+      return;
+    }
+    const auto = settings.auto_publish === true;
+    const panelText = "⚙️ تنظیمات ربات خبر رادین\n\n"
+      + "📣 کانال مقصد: " + String(settings.channel_username || "@radinnews") + "\n"
+      + "🕒 انتشار زمان‌بندی‌شده: " + (auto ? "روشن" : "خاموش") + "\n"
+      + "✅ انتشار فوری خبرها همچنان با تأیید مدیر انجام می‌شود.\n\n"
+      + "برای تغییر کانال، دکمهٔ راهنما را بزنید و سپس دستور /channel @username را بفرستید.";
+    const reply_markup = { inline_keyboard: [
+      [{ text: auto ? "⏸ خاموش‌کردن انتشار زمان‌بندی‌شده" : "▶️ روشن‌کردن انتشار زمان‌بندی‌شده", callback_data: "botsettings:auto" }],
+      [{ text: "📣 راهنمای تغییر کانال مقصد", callback_data: "botsettings:channel" }],
+      [{ text: "🔄 تازه‌سازی تنظیمات", callback_data: "botsettings:refresh" }],
+    ] };
+    if (messageId) {
+      await telegram("editMessageText", { chat_id: chatId, message_id: messageId, text: panelText, reply_markup, disable_web_page_preview: true });
+    } else {
+      await telegram("sendMessage", { chat_id: chatId, text: panelText, reply_markup, disable_web_page_preview: true });
+    }
+  };
 
   const callback = update.callback_query;
   if (callback) {
@@ -54,6 +79,44 @@ Deno.serve(async (req: Request) => {
     const data = String(callback.data ?? "");
     if (!adminIds.includes(userId)) {
       await answerCallback(String(callback.id), "این عملیات فقط برای مدیر ربات در دسترس است.");
+      return json({ ok: true });
+    }
+    if (data.startsWith("botsettings:")) {
+      const chat = callback.message?.chat?.id;
+      const messageId = callback.message?.message_id;
+      if (data === "botsettings:refresh") {
+        await answerCallback(String(callback.id));
+        await showBotSettings(chat, messageId);
+        return json({ ok: true });
+      }
+      if (data === "botsettings:channel") {
+        await answerCallback(String(callback.id));
+        await telegram("sendMessage", { chat_id: chat, text: "برای تغییر کانال مقصد، نام کاربری کانال را با این دستور بفرستید:\n/channel @radinnews\n\nربات باید در کانال مقصد دسترسی ارسال داشته باشد." });
+        return json({ ok: true });
+      }
+      if (data === "botsettings:auto") {
+        const { data: current, error: readError } = await db.from("bot_settings").select("auto_publish").eq("id", "main").maybeSingle();
+        if (readError || !current) {
+          await answerCallback(String(callback.id), "تنظیمات خوانده نشد.");
+          return json({ ok: true });
+        }
+        const next = current.auto_publish !== true;
+        const { error } = await db.from("bot_settings").update({
+          auto_publish: next, updated_at: new Date().toISOString(), updated_by: "telegram:" + userId,
+        }).eq("id", "main");
+        if (error) {
+          await answerCallback(String(callback.id), "ذخیره تنظیمات ناموفق بود.");
+          return json({ ok: true });
+        }
+        await db.from("bot_activity").insert({
+          event_type: "settings_changed", actor: "telegram:" + userId,
+          details: { setting: "auto_publish", value: next },
+        });
+        await answerCallback(String(callback.id), next ? "انتشار زمان‌بندی‌شده روشن شد." : "انتشار زمان‌بندی‌شده خاموش شد.");
+        await showBotSettings(chat, messageId);
+        return json({ ok: true });
+      }
+      await answerCallback(String(callback.id), "گزینهٔ تنظیمات شناخته نشد.");
       return json({ ok: true });
     }
     const match = data.match(/^(publish|reject):([0-9a-f-]{36})$/i);
@@ -128,7 +191,7 @@ Deno.serve(async (req: Request) => {
   if (command === "/start") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس یا ویدیو بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n/help — راهنما",
+      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس یا ویدیو بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n/settings — تنظیمات مدیر\n/help — راهنما",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -136,13 +199,46 @@ Deno.serve(async (req: Request) => {
   if (command === "/help") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nانتشار خودکار فعال نیست. لینک منبع در کپشن کانال درج نمی‌شود.",
+      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nمدیر: /settings تنظیمات ربات، /channel @username تغییر کانال مقصد.\nلینک منبع در کپشن کانال درج نمی‌شود.",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
   }
   if (command === "/categories") {
     await telegram("sendMessage", { chat_id: chatId, text: "دسته‌بندی‌های اولیه:\n🇮🇷 ایران\n🌍 جهان\n🏛 سیاست\n💹 اقتصاد\n🚨 حوادث\n💻 فناوری و هوش مصنوعی\n⚽ ورزش\n✨ خبرهای جالب" });
+    return json({ ok: true });
+  }
+  if (command === "/settings") {
+    if (!isAdmin) {
+      await telegram("sendMessage", { chat_id: chatId, text: "این دستور فقط برای مدیر ربات در دسترس است." });
+      return json({ ok: true });
+    }
+    await showBotSettings(chatId);
+    return json({ ok: true });
+  }
+  if (command === "/channel") {
+    if (!isAdmin) {
+      await telegram("sendMessage", { chat_id: chatId, text: "این دستور فقط برای مدیر ربات در دسترس است." });
+      return json({ ok: true });
+    }
+    const rawChannel = messageText.split(/\s+/, 2)[1] || "";
+    const channel = rawChannel.startsWith("@") ? rawChannel : "@" + rawChannel;
+    if (!/^@[A-Za-z0-9_]{5,}$/.test(channel)) {
+      await telegram("sendMessage", { chat_id: chatId, text: "نام کاربری کانال معتبر نیست. نمونه: /channel @radinnews" });
+      return json({ ok: true });
+    }
+    const { error } = await db.from("bot_settings").update({
+      channel_username: channel, updated_at: new Date().toISOString(), updated_by: "telegram:" + userId,
+    }).eq("id", "main");
+    if (error) {
+      await telegram("sendMessage", { chat_id: chatId, text: "ذخیره کانال مقصد ناموفق بود. لطفاً دوباره تلاش کنید." });
+      return json({ ok: true });
+    }
+    await db.from("bot_activity").insert({
+      event_type: "settings_changed", actor: "telegram:" + userId,
+      details: { setting: "channel_username", value: channel },
+    });
+    await telegram("sendMessage", { chat_id: chatId, text: "✅ کانال مقصد به " + channel + " تغییر کرد. برای دیدن وضعیت /settings را بفرستید." });
     return json({ ok: true });
   }
   if (command === "/status" && isAdmin) {
