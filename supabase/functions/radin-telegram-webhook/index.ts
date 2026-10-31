@@ -312,6 +312,58 @@ Deno.serve(async (req: Request) => {
       await showScheduledQueue(chat, messageId);
       return json({ ok: true });
     }
+    const regenerateMatch = data.match(/^regenerate:([0-9a-f-]{36})$/i);
+    if (regenerateMatch) {
+      const itemId = regenerateMatch[1];
+      const chat = callback.message?.chat?.id;
+      const messageId = callback.message?.message_id;
+      const { data: item } = await db.from("news_items")
+        .select("id,title,summary,rewritten_title,rewritten_text,source_name,source_type,pub_date,graphic_image_url,telegram_chat_id,published")
+        .eq("id", itemId).maybeSingle();
+      if (!item || item.published || item.graphic_quality_status !== "review" || (item.telegram_chat_id && String(item.telegram_chat_id) !== String(chat))) {
+        await answerCallback(String(callback.id), "این پوستر قابل بازتولید نیست.");
+        return json({ ok: true });
+      }
+      await answerCallback(String(callback.id), "بازتولید پوستر شروع شد.");
+      await telegram("editMessageReplyMarkup", { chat_id: chat, message_id: messageId, reply_markup: { inline_keyboard: [] } });
+      const { error: resetError } = await db.from("news_items").update({
+        graphic_image_url: null, graphic_quality_status: null, graphic_quality_score: null, graphic_quality_notes: null,
+        telegram_chat_id: Number(chat), updated_at: new Date().toISOString(),
+      }).eq("id", itemId).eq("published", false);
+      if (resetError) {
+        await telegram("sendMessage", { chat_id: chat, text: "شروع بازتولید پوستر ناموفق بود." });
+        return json({ ok: true });
+      }
+      const response = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
+        method: "POST",
+        headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
+        body: JSON.stringify({ item_id: itemId }),
+        signal: AbortSignal.timeout(140000),
+      });
+      let result: any = {}; try { result = await response.json(); } catch {}
+      const success = response.ok && result.results?.some((row: any) => row.id === itemId && row.ok);
+      const { data: ready } = await db.from("news_items")
+        .select("title,summary,rewritten_title,rewritten_text,graphic_image_url,telegram_preview_message_id,graphic_quality_status,graphic_quality_notes")
+        .eq("id", itemId).maybeSingle();
+      if (!success || !ready?.graphic_image_url) {
+        await telegram("sendMessage", { chat_id: chat, text: "بازتولید شروع شد، اما هنوز کامل نشده است؛ خبر در صف خودکار می‌ماند." });
+        return json({ ok: true });
+      }
+      const note = ready.graphic_quality_status === "review" ? "\n\n⚠️ بررسی کیفیت: " + String(ready.graphic_quality_notes || "پوستر نیاز به بازبینی دارد.").slice(0, 180) : "";
+      const caption = ("پیش‌نمایش خبر — هنوز منتشر نشده\n" + String(ready.rewritten_title || ready.title || "") + (ready.rewritten_text ? "\n\n" + ready.rewritten_text : ready.summary ? "\n\n" + ready.summary : "") + note).slice(0, 1024);
+      const keyboard: any[] = [
+        [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + itemId }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + itemId }],
+        [{ text: "✅ انتشار در کانال", callback_data: "publish:" + itemId }, { text: "🗑 رد خبر", callback_data: "reject:" + itemId }],
+      ];
+      if (ready.graphic_quality_status === "review") keyboard.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]);
+      const edited = await telegram("editMessageMedia", { chat_id: chat, message_id: messageId, media: { type: "photo", media: ready.graphic_image_url, caption }, reply_markup: { inline_keyboard: keyboard } });
+      if (!edited.response.ok || !edited.result.ok) {
+        const sent = await telegram("sendPhoto", { chat_id: chat, photo: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } });
+        if (sent.response.ok && sent.result.ok) await db.from("news_items").update({ telegram_preview_message_id: sent.result.result?.message_id || null }).eq("id", itemId);
+      }
+      await db.from("bot_activity").insert({ event_type: "graphic_regenerated", item_id: itemId, actor: "telegram:" + userId, details: { quality_status: ready.graphic_quality_status, score: result.results?.find((row: any) => row.id === itemId)?.graphic_quality_score ?? null } });
+      return json({ ok: true });
+    }
     if (data.startsWith("botsettings:")) {
       const chat = callback.message?.chat?.id;
       const messageId = callback.message?.message_id;
@@ -500,7 +552,7 @@ Deno.serve(async (req: Request) => {
 
   if (message.reply_to_message?.message_id && messageText && isAdmin) {
     const { data: editing } = await db.from("news_items")
-      .select("id,title,summary,rewritten_title,rewritten_text,graphic_image_url,telegram_preview_message_id,telegram_edit_type,telegram_edit_requested_at,pub_date,source_name,source_type")
+      .select("id,title,summary,rewritten_title,rewritten_text,graphic_image_url,telegram_preview_message_id,telegram_edit_type,telegram_edit_requested_at,pub_date,source_name,source_type,graphic_quality_status")
       .eq("telegram_chat_id", chatId)
       .eq("telegram_edit_user_id", Number(userId))
       .eq("telegram_edit_prompt_message_id", Number(message.reply_to_message.message_id))
@@ -522,10 +574,14 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true });
       }
       const clearSession = { telegram_edit_type: null, telegram_edit_user_id: null, telegram_edit_prompt_message_id: null, telegram_edit_requested_at: null, updated_at: new Date().toISOString() };
-      const keyboard = (id: string) => ({ inline_keyboard: [
-        [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + id }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + id }],
-        [{ text: "✅ انتشار در کانال", callback_data: "publish:" + id }, { text: "🗑 رد خبر", callback_data: "reject:" + id }],
-      ] });
+      const keyboard = (id: string, qualityStatus?: string) => {
+        const rows: any[] = [
+          [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + id }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + id }],
+          [{ text: "✅ انتشار در کانال", callback_data: "publish:" + id }, { text: "🗑 رد خبر", callback_data: "reject:" + id }],
+        ];
+        if (qualityStatus === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + id }]);
+        return { inline_keyboard: rows };
+      };
       if (editing.telegram_edit_type === "caption") {
         const { error } = await db.from("news_items").update({ ...clearSession, rewritten_text: cleanValue, telegram_caption_edited: true }).eq("id", editing.id).eq("published", false);
         if (error) {
@@ -534,7 +590,7 @@ Deno.serve(async (req: Request) => {
         }
         const previewCaption = ("پیش‌نمایش خبر — هنوز منتشر نشده\n" + String(editing.rewritten_title || editing.title || "") + "\n\n" + cleanValue).slice(0, 1024);
         if (editing.telegram_preview_message_id) {
-          await telegram("editMessageCaption", { chat_id: chatId, message_id: editing.telegram_preview_message_id, caption: previewCaption, reply_markup: keyboard(editing.id) });
+          await telegram("editMessageCaption", { chat_id: chatId, message_id: editing.telegram_preview_message_id, caption: previewCaption, reply_markup: keyboard(editing.id, editing.graphic_quality_status) });
         }
         await db.from("bot_activity").insert({ event_type: "caption_edited", item_id: editing.id, actor: "telegram:" + userId, details: { length: cleanValue.length } });
         await telegram("sendMessage", { chat_id: chatId, text: "✅ کپشن ذخیره شد و در پیش‌نمایش به‌روزرسانی شد." });
@@ -561,7 +617,7 @@ Deno.serve(async (req: Request) => {
       let workerResult: any = {}; try { workerResult = await workerResponse.json(); } catch {}
       const success = workerResponse.ok && workerResult.results?.some((row: any) => row.id === editing.id && row.ok);
       const { data: ready } = await db.from("news_items")
-        .select("title,summary,rewritten_title,rewritten_text,source_name,source_type,pub_date,graphic_image_url,telegram_preview_message_id")
+        .select("title,summary,rewritten_title,rewritten_text,source_name,source_type,pub_date,graphic_image_url,telegram_preview_message_id,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
         .eq("id", editing.id).maybeSingle();
       if (!success || !ready?.graphic_image_url) {
         await telegram("sendMessage", { chat_id: chatId, text: "تیتر ذخیره شد؛ ساخت پوستر در صف خودکار باقی ماند و پس از آماده‌شدن ارسال می‌شود." });
@@ -573,12 +629,12 @@ Deno.serve(async (req: Request) => {
         const editedPhoto = await telegram("editMessageMedia", {
           chat_id: chatId, message_id: ready.telegram_preview_message_id,
           media: { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
-          reply_markup: keyboard(editing.id),
+          reply_markup: keyboard(editing.id, ready.graphic_quality_status),
         });
         updatedPreview = editedPhoto.response.ok && editedPhoto.result.ok;
       }
       if (!updatedPreview) {
-        const sentPreview = await telegram("sendPhoto", { chat_id: chatId, photo: ready.graphic_image_url, caption: previewCaption, reply_markup: keyboard(editing.id) });
+        const sentPreview = await telegram("sendPhoto", { chat_id: chatId, photo: ready.graphic_image_url, caption: previewCaption, reply_markup: keyboard(editing.id, ready.graphic_quality_status) });
         if (sentPreview.response.ok && sentPreview.result.ok) {
           await db.from("news_items").update({ telegram_preview_message_id: sentPreview.result.result?.message_id || null }).eq("id", editing.id);
         }
@@ -933,7 +989,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const { data: ready } = await db.from("news_items")
-    .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,pub_date,graphic_image_url")
+    .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,pub_date,graphic_image_url,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
     .eq("id", itemId).maybeSingle();
   if (!ready?.graphic_image_url) {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر هنوز آماده نیست؛ خبر منتشر نشده است." });
@@ -951,21 +1007,23 @@ Deno.serve(async (req: Request) => {
     : aiStatus === "api_error"
     ? "⚠️ بازطراحی AI ناموفق بود؛ پوستر با قالب رادین آماده شد."
     : "";
+  const qualityWarning = ready.graphic_quality_status === "review" ? "\n\n⚠️ بررسی کیفیت: " + String(ready.graphic_quality_notes || "پوستر نیاز به بازبینی دارد.").slice(0, 180) : "";
   const previewText = [
     "پیش‌نمایش خبر — هنوز منتشر نشده",
     ready.rewritten_title || ready.title,
     (ready.rewritten_text || ready.summary) ? "\n" + (ready.rewritten_text || ready.summary) : "",
     ...(ready.source_type === "telegram" ? [] : ["\nمنبع: " + (ready.source_name || sourceName)]),
     "\nتاریخ: " + new Date(ready.pub_date || publishedAt).toLocaleDateString("fa-IR"),
-  ].join("\n").slice(0, 950);
+  ].join("\n") + qualityWarning;
+  const safePreviewText = previewText.slice(0, 1024);
   const preview = await telegram("sendPhoto", {
     chat_id: chatId,
     photo: ready.graphic_image_url,
-    caption: previewText,
-    reply_markup: { inline_keyboard: [
+    caption: safePreviewText,
+    reply_markup: { inline_keyboard: (() => { const rows: any[] = [
       [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + itemId }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + itemId }],
       [{ text: "✅ انتشار در کانال", callback_data: "publish:" + itemId }, { text: "🗑 رد خبر", callback_data: "reject:" + itemId }],
-    ] },
+    ]; if (ready.graphic_quality_status === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]); return rows; })() },
   });
   if (!preview.response.ok || !preview.result.ok) {
     console.error("Telegram preview failed", preview.response.status, preview.result?.description || "unknown");
