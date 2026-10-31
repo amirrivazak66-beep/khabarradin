@@ -52,7 +52,7 @@ Deno.serve(async(req)=>{
  // A signed-in admin can request one unpublished item. Scheduled batch processing still requires the cron secret.
  if(body.item_id && !authorized && !req.headers.get("apikey"))return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  if(!body.item_id && !authorized)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
- let query=db.from("news_items").select("id,title,summary,category,image_url,graphic_image_url,source_name,source_type,pub_date,source_url,telegram_chat_id,telegram_preview_message_id,rewritten_title").eq("published",false).neq("review_status","rejected");
+ let query=db.from("news_items").select("id,title,summary,category,image_url,graphic_image_url,source_name,source_type,pub_date,source_url,telegram_chat_id,telegram_preview_message_id,rewritten_title,telegram_headline_edited,telegram_caption_edited,rewritten_text").eq("published",false).neq("review_status","rejected");
  if(body.item_id) query=query.eq("id",String(body.item_id));
  else query=query.or("and(graphic_image_url.is.null,or(image_url.not.is.null,source_type.eq.telegram)),and(source_type.eq.telegram,telegram_chat_id.not.is.null,telegram_preview_message_id.is.null)").order("created_at",{ascending:true}).limit(1);
  const {data:items,error}=await query;
@@ -66,8 +66,8 @@ Deno.serve(async(req)=>{
    if(body.trigger==="scheduled"&&item.graphic_image_url&&item.telegram_chat_id&&!item.telegram_preview_message_id){
      const botToken=Deno.env.get("BOT_TOKEN")||"";
      if(!botToken)throw new Error("Telegram bot token unavailable for queued preview");
-     const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\\n"+String(item.rewritten_title||item.title||"خبر رادین")).slice(0,900);
-     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendPhoto",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,photo:item.graphic_image_url,caption,reply_markup:{inline_keyboard:[[{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]]}}),signal:AbortSignal.timeout(20000)});
+     const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\\n"+String(item.rewritten_title||item.title||"خبر رادین")+(item.telegram_caption_edited&&item.rewritten_text?"\\n\\n"+String(item.rewritten_text):"")).slice(0,900);
+     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendPhoto",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,photo:item.graphic_image_url,caption,reply_markup:{inline_keyboard:[[{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],[{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]]}}),signal:AbortSignal.timeout(20000)});
      const sentBody=await sent.json().catch(()=>({}));
      if(!sent.ok||!sentBody.ok)throw new Error("Telegram queued preview failed: "+String(sentBody.description||sent.status));
      const previewId=sentBody.result?.message_id||null;
@@ -128,7 +128,9 @@ Deno.serve(async(req)=>{
    let aiBackgroundData="";
    aiStatus=isTelegram?(openAiKey?"api_error":"missing_key"):"not_applicable";
    const geminiKey=Deno.env.get("GEMINI_API_KEY")||"";
-   if(isTelegram&&geminiKey){
+   if(isTelegram&&item.telegram_headline_edited&&String(item.rewritten_title||"").trim()){
+     graphicHeadline=cleanHeadline(String(item.rewritten_title));headlineStatus="ai";aiStatus="manual_edit";
+   }else if(isTelegram&&geminiKey){
      const prompt="از خبر یک تیتر کوتاه و هوک‌دار، حداکثر ۴۸ نویسه و ۴ تا ۷ واژه بساز. مهم‌ترین کشمکش، پیامد یا نکته غافلگیرکننده خبر را برجسته کن؛ تیتر طبیعی و دقیق باشد، کلیک‌بیت و واقعیت تازه نساز، جمله را ناقص نگذار و لینک/نام کانال نیاور. فقط تیتر فارسی را برگردان.\nعنوان: "+String(item.title||"").slice(0,500)+"\nخلاصه: "+String(item.summary||"").slice(0,1400);
      for(let attempt=1;attempt<=5&&!graphicHeadline;attempt++){
        try{
@@ -309,7 +311,7 @@ Deno.serve(async(req)=>{
    if(body.trigger==="scheduled"&&isTelegram&&item.telegram_chat_id){
      const botToken=Deno.env.get("BOT_TOKEN")||"";
      if(!botToken)throw new Error("Telegram bot token unavailable for queued preview");
-     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendPhoto",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,photo:pub.publicUrl,caption:("پیش‌نمایش خبر — هنوز منتشر نشده\\n"+graphicHeadline).slice(0,900),reply_markup:{inline_keyboard:[[{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]]}}),signal:AbortSignal.timeout(20000)});
+     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendPhoto",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,photo:pub.publicUrl,caption:("پیش‌نمایش خبر — هنوز منتشر نشده\\n"+graphicHeadline+(item.telegram_caption_edited&&item.rewritten_text?"\\n\\n"+String(item.rewritten_text):"")).slice(0,900),reply_markup:{inline_keyboard:[[{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],[{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]]}}),signal:AbortSignal.timeout(20000)});
      const sentBody=await sent.json().catch(()=>({}));
      if(!sent.ok||!sentBody.ok)throw new Error("Telegram queued preview failed: "+String(sentBody.description||sent.status));
      const {error:previewUpdateError}=await db.from("news_items").update({telegram_preview_message_id:sentBody.result?.message_id||null}).eq("id",item.id);
