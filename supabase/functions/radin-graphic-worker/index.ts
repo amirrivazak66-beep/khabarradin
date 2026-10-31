@@ -54,7 +54,7 @@ Deno.serve(async(req)=>{
  if(!body.item_id && !authorized)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  let query=db.from("news_items").select("id,title,summary,category,image_url,graphic_image_url,source_name,source_type,pub_date,source_url,telegram_chat_id,telegram_preview_message_id,rewritten_title").eq("published",false).neq("review_status","rejected");
  if(body.item_id) query=query.eq("id",String(body.item_id));
- else query=query.or("and(graphic_image_url.is.null,or(image_url.not.is.null,source_type.eq.telegram)),and(source_type.eq.telegram,telegram_chat_id.not.is.null,telegram_preview_message_id.is.null)").order("created_at",{ascending:true}).limit(2);
+ else query=query.or("and(graphic_image_url.is.null,or(image_url.not.is.null,source_type.eq.telegram)),and(source_type.eq.telegram,telegram_chat_id.not.is.null,telegram_preview_message_id.is.null)").order("created_at",{ascending:true}).limit(1);
  const {data:items,error}=await query;
  if(error)return new Response(JSON.stringify({error:error.message}),{status:500,headers:cors});
  const results=[];
@@ -146,7 +146,7 @@ Deno.serve(async(req)=>{
          const errorText=String(result?.error?.message||"Gemini headline request failed").slice(0,180);
          aiStatus=response.status===429?"rate_limited":response.status>=500?"service_busy":"api_error";
          console.error("Gemini headline attempt",attempt,"failed",response.status,errorText);
-         if(response.status!==429&&response.status<500&&response.ok) break;
+         if(response.status>=400&&response.status<500&&response.status!==429) break;
          const retryAfter=Number(response.headers.get("retry-after")||0);
          if(attempt<5)await new Promise(r=>setTimeout(r,Math.min(2500,Math.max(600,retryAfter*1000||attempt*600))));
        }catch(e){
