@@ -41,6 +41,33 @@ Deno.serve(async(req)=>{
  const supplied=req.headers.get("x-radin-cron-secret")||"";
  const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+ const recordAiUsage=async(entry:{itemId:string;provider:string;model:string;task:string;status:string;usage?:any})=>{
+  const usage=entry.usage||{};
+  const inputTokens=Number.isFinite(Number(usage.prompt_tokens??usage.input_tokens))?Number(usage.prompt_tokens??usage.input_tokens):null;
+  const outputTokens=Number.isFinite(Number(usage.completion_tokens??usage.output_tokens))?Number(usage.completion_tokens??usage.output_tokens):null;
+  const inputImage=Number(usage.prompt_tokens_details?.image_tokens??usage.input_tokens_details?.image_tokens??0);
+  const outputImage=Number(usage.completion_tokens_details?.image_tokens??usage.output_tokens_details?.image_tokens??0);
+  let cost:number|null=null,costKnown=false;
+  const rateSnapshot:Record<string,number|string>={rate_date:"2026-10-31"};
+  if(entry.provider==="gemini"){cost=0;costKnown=true;rateSnapshot.pricing="free-tier request";}
+  else if(entry.model==="gpt-4o-mini"&&inputTokens!==null&&outputTokens!==null){
+    const inputRate=0.15,outputRate=0.60;cost=(inputTokens*inputRate+outputTokens*outputRate)/1000000;costKnown=true;
+    rateSnapshot.input_usd_per_million=inputRate;rateSnapshot.output_usd_per_million=outputRate;
+  }else if(entry.model.startsWith("gpt-image-2.5")&&inputTokens!==null&&outputTokens!==null){
+    const textInputRate=5,imageInputRate=8,imageOutputRate=30;
+    const textInput=Math.max(0,inputTokens-inputImage);
+    cost=(textInput*textInputRate+inputImage*imageInputRate+(outputImage||outputTokens)*imageOutputRate)/1000000;costKnown=true;
+    rateSnapshot.text_input_usd_per_million=textInputRate;rateSnapshot.image_input_usd_per_million=imageInputRate;rateSnapshot.image_output_usd_per_million=imageOutputRate;
+  }
+  const {error}=await db.from("ai_usage_events").insert({
+    item_id:entry.itemId,provider:entry.provider,model:entry.model,task:entry.task,status:entry.status,
+    input_tokens:inputTokens,output_tokens:outputTokens,image_input_tokens:inputTokens===null?null:inputImage,
+    image_output_tokens:outputTokens===null?null:(outputImage||((entry.model.startsWith("gpt-image-2.5"))?outputTokens:0)),
+    estimated_cost_usd:cost,cost_known:costKnown,rate_snapshot:rateSnapshot,raw_usage:usage
+  });
+  if(error)console.error("AI usage event could not be saved",error.message);
+ };
+
  let body:any={};try{body=await req.json()}catch{}
  let authorized=false;
  if(supplied){const {data:ok,error:authError}=await db.rpc("verify_radin_cron_secret",{candidate:supplied});authorized=!authError&&ok===true;}
@@ -149,6 +176,7 @@ Deno.serve(async(req)=>{
            signal:AbortSignal.timeout(8000)
          });
          let result:any={};try{result=await response.json()}catch{}
+         await recordAiUsage({itemId:item.id,provider:"gemini",model:"gemini-3.1-flash-lite",task:"headline",status:response.ok?"succeeded":"failed",usage:result?.usageMetadata||result?.usage});
          const raw=result?.candidates?.[0]?.content?.parts?.map((p:any)=>p.text||"").join(" ").trim()||"";
          const candidate=cleanHeadline(raw.replace(/^["'«»]+|["'«»]+$/g,""));
          if(response.ok&&candidate.length>=12&&candidate.length<=52&&!incompleteEnding.test(candidate)){
@@ -163,6 +191,7 @@ Deno.serve(async(req)=>{
        }catch(e){
          aiStatus=e instanceof Error&&/timeout/i.test(e.name+" "+e.message)?"timeout":"api_error";
          console.error("Gemini headline attempt",attempt,"failed",e instanceof Error?e.message:"unknown");
+         await recordAiUsage({itemId:item.id,provider:"gemini",model:"gemini-3.1-flash-lite",task:"headline",status:"network_error"});
          if(attempt<5)await new Promise(r=>setTimeout(r,Math.min(2200,attempt*600)));
        }
      }
@@ -178,6 +207,7 @@ Deno.serve(async(req)=>{
          signal:AbortSignal.timeout(12000)
        });
        let textResult:any={};try{textResult=await textResponse.json()}catch{}
+       await recordAiUsage({itemId:item.id,provider:"openai",model:"gpt-4o-mini",task:"headline_fallback",status:textResponse.ok?"succeeded":"failed",usage:textResult?.usage});
        if(textResponse.ok){
          const content=textResult?.choices?.[0]?.message?.content;
          const parsed=typeof content==="string"?JSON.parse(content):{};
@@ -203,6 +233,7 @@ Deno.serve(async(req)=>{
        signal:AbortSignal.timeout(60000)
      });
      let generated:any={};try{generated=await imageResponse.json()}catch{}
+     await recordAiUsage({itemId:item.id,provider:"openai",model:"gpt-image-2.5-flare",task:"text_only_image",status:imageResponse.ok?"succeeded":"failed",usage:generated?.usage});
      const b64=generated?.data?.[0]?.b64_json;
      if(!imageResponse.ok||typeof b64!=="string"||b64.length<1000)throw new Error("OpenAI could not generate an editorial image for text-only news");
      const binary=atob(b64);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
@@ -228,6 +259,7 @@ Deno.serve(async(req)=>{
          signal:AbortSignal.timeout(60000)
        });
        let aiResult:any={};try{aiResult=await aiResponse.json()}catch{}
+       await recordAiUsage({itemId:item.id,provider:"openai",model:"gpt-image-2.5-sunburst",task:"poster_artwork",status:aiResponse.ok?"succeeded":"failed",usage:aiResult?.usage});
        const aiBase64=aiResult?.data?.[0]?.b64_json;
        if(aiResponse.ok&&typeof aiBase64==="string"&&aiBase64.length>1000){
          aiBackgroundData="data:image/jpeg;base64,"+aiBase64;aiStatus="ai_graphic";
@@ -332,6 +364,7 @@ Deno.serve(async(req)=>{
          signal:AbortSignal.timeout(18000)
        });
        const qaBody:any=await qaResponse.json().catch(()=>({}));
+       await recordAiUsage({itemId:item.id,provider:"openai",model:"gpt-4o-mini",task:"poster_quality_review",status:qaResponse.ok?"succeeded":"failed",usage:qaBody?.usage});
        const qaContent=qaBody?.choices?.[0]?.message?.content;
        if(qaResponse.ok&&typeof qaContent==="string"){
          const qa=JSON.parse(qaContent);
