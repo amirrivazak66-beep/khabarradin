@@ -47,30 +47,155 @@ Deno.serve(async (req: Request) => {
   const answerCallback = async (id: string, text?: string) => {
     await telegram("answerCallbackQuery", { callback_query_id: id, text: text || "", show_alert: Boolean(text) });
   };
+  const getBotQueueCounts = async () => {
+    const base = () => db.from("news_items").select("id", { count: "exact", head: true })
+      .eq("published", false).in("source_type", ["telegram", "website"]).neq("review_status", "rejected");
+    const [allResult, scheduledResult] = await Promise.all([
+      base(),
+      base().not("scheduled_at", "is", null),
+    ]);
+    return {
+      total: allResult.count || 0,
+      scheduled: scheduledResult.count || 0,
+      waiting: Math.max(0, (allResult.count || 0) - (scheduledResult.count || 0)),
+      error: allResult.error || scheduledResult.error,
+    };
+  };
+
   const showBotSettings = async (chatId: number | string, messageId?: number) => {
-    const { data: settings, error } = await db.from("bot_settings")
-      .select("channel_username,auto_publish")
-      .eq("id", "main").maybeSingle();
-    if (error || !settings) {
-      await telegram("sendMessage", { chat_id: chatId, text: "خواندن تنظیمات ربات ناموفق بود. کمی بعد دوباره تلاش کنید." });
+    const [{ data: settings, error }, counts] = await Promise.all([
+      db.from("bot_settings").select("channel_username,auto_publish,schedule_interval_minutes,queue_limit")
+        .eq("id", "main").maybeSingle(),
+      getBotQueueCounts(),
+    ]);
+    if (error || !settings || counts.error) {
+      await telegram("sendMessage", { chat_id: chatId, text: "خواندن تنظیمات ربات یا صف ناموفق بود. کمی بعد دوباره تلاش کنید." });
       return;
     }
     const auto = settings.auto_publish === true;
-    const panelText = "⚙️ تنظیمات ربات خبر رادین\n\n"
-      + "📣 کانال مقصد: " + String(settings.channel_username || "@radinnews") + "\n"
-      + "🕒 انتشار زمان‌بندی‌شده: " + (auto ? "روشن" : "خاموش") + "\n"
-      + "✅ انتشار فوری خبرها همچنان با تأیید مدیر انجام می‌شود.\n\n"
-      + "برای تغییر کانال، دکمهٔ راهنما را بزنید و سپس دستور /channel @username را بفرستید.";
+    const panelText = [
+      "⚙️ تنظیمات ربات خبر رادین",
+      "",
+      "📣 کانال مقصد: " + String(settings.channel_username || "@radinnews"),
+      "📬 پست‌های در صف: " + counts.total + " | زمان‌بندی‌شده: " + counts.scheduled + " | بدون زمان: " + counts.waiting,
+      "🕒 فاصلهٔ ارسال: هر " + settings.schedule_interval_minutes + " دقیقه",
+      "📦 سقف چیدن صف در هر نوبت: " + settings.queue_limit + " پست",
+      "🤖 ارسال خودکار: " + (auto ? "روشن" : "خاموش"),
+      "✅ خبرهای زمان‌دار فقط با فعال‌بودن ارسال خودکار منتشر می‌شوند.",
+      "برای تغییر کانال از دستور /channel @username استفاده کنید.",
+    ].join("\n");
     const reply_markup = { inline_keyboard: [
-      [{ text: auto ? "⏸ خاموش‌کردن انتشار زمان‌بندی‌شده" : "▶️ روشن‌کردن انتشار زمان‌بندی‌شده", callback_data: "botsettings:auto" }],
-      [{ text: "📣 راهنمای تغییر کانال مقصد", callback_data: "botsettings:channel" }],
-      [{ text: "🔄 تازه‌سازی تنظیمات", callback_data: "botsettings:refresh" }],
+      [{ text: auto ? "⏸ خاموش‌کردن ارسال خودکار" : "▶️ روشن‌کردن ارسال خودکار", callback_data: "botsettings:auto" }],
+      [{ text: "🕒 تنظیم فاصلهٔ زمان‌بندی", callback_data: "botsettings:schedule" }],
+      [{ text: "📦 تنظیم تعداد صف", callback_data: "botsettings:queue" }],
+      [{ text: "📨 چیدن صف خبرهای آماده", callback_data: "botsettings:fill_queue" }],
+      [{ text: "📣 راهنمای تغییر کانال", callback_data: "botsettings:channel" }],
+      [{ text: "🔄 تازه‌سازی", callback_data: "botsettings:refresh" }],
     ] };
     if (messageId) {
       await telegram("editMessageText", { chat_id: chatId, message_id: messageId, text: panelText, reply_markup, disable_web_page_preview: true });
     } else {
       await telegram("sendMessage", { chat_id: chatId, text: panelText, reply_markup, disable_web_page_preview: true });
     }
+  };
+
+  const showScheduleSettings = async (chatId: number | string, messageId: number, userId: string) => {
+    const { data: settings, error } = await db.from("bot_settings")
+      .select("schedule_interval_minutes").eq("id", "main").maybeSingle();
+    if (error || !settings) {
+      await telegram("sendMessage", { chat_id: chatId, text: "خواندن زمان‌بندی ناموفق بود." });
+      return;
+    }
+    const current = Number(settings.schedule_interval_minutes || 60);
+    const panelText = [
+      "🕒 تنظیم زمان‌بندی ارسال",
+      "",
+      "فاصلهٔ فعلی بین دو پست: " + current + " دقیقه",
+      "با «چیدن صف خبرهای آماده»، خبرها از فاصلهٔ انتخاب‌شده به بعد با همین فاصله پشت‌سرهم زمان‌بندی می‌شوند.",
+      "زمان‌ها بر اساس منطقهٔ زمانی تهران هستند.",
+    ].join("\n");
+    const intervals = [15, 30, 60, 120];
+    const keyboard = intervals.map(minutes => [{
+      text: (minutes === current ? "✅ " : "") + minutes + " دقیقه",
+      callback_data: "botsettings:interval:" + minutes,
+    }]);
+    keyboard.push([{ text: "↩️ بازگشت به تنظیمات ربات", callback_data: "botsettings:refresh" }]);
+    await telegram("editMessageText", { chat_id: chatId, message_id: messageId, text: panelText, reply_markup: { inline_keyboard: keyboard } });
+  };
+
+  const showQueueSettings = async (chatId: number | string, messageId: number) => {
+    const { data: settings, error } = await db.from("bot_settings")
+      .select("queue_limit").eq("id", "main").maybeSingle();
+    if (error || !settings) {
+      await telegram("sendMessage", { chat_id: chatId, text: "خواندن تعداد صف ناموفق بود." });
+      return;
+    }
+    const current = Number(settings.queue_limit || 10);
+    const panelText = [
+      "📦 تنظیم تعداد پست‌های صف",
+      "",
+      "در هر بار «چیدن صف خبرهای آماده»، حداکثر " + current + " خبر آماده زمان‌بندی می‌شود.",
+      "تعداد خبرهای فعلی در صف و زمان‌دار در صفحهٔ اصلی /settings دیده می‌شود.",
+    ].join("\n");
+    const limits = [5, 10, 20, 30];
+    const keyboard = limits.map(limit => [{
+      text: (limit === current ? "✅ " : "") + limit + " پست",
+      callback_data: "botsettings:queue_limit:" + limit,
+    }]);
+    keyboard.push([{ text: "📨 چیدن صف خبرهای آماده", callback_data: "botsettings:fill_queue" }]);
+    keyboard.push([{ text: "↩️ بازگشت به تنظیمات ربات", callback_data: "botsettings:refresh" }]);
+    await telegram("editMessageText", { chat_id: chatId, message_id: messageId, text: panelText, reply_markup: { inline_keyboard: keyboard } });
+  };
+
+  const fillBotQueue = async (userId: string) => {
+    const { data: settings, error: settingsError } = await db.from("bot_settings")
+      .select("auto_publish,schedule_interval_minutes,queue_limit").eq("id", "main").maybeSingle();
+    if (settingsError || !settings) return { ok: false, message: "تنظیمات صف خوانده نشد." };
+    if (settings.auto_publish !== true) return { ok: false, message: "ابتدا ارسال خودکار را روشن کنید؛ صف تا قبل از آن ارسال نمی‌شود." };
+
+    const { data: candidates, error } = await db.from("news_items")
+      .select("id,title,rewritten_title,source_type,graphic_image_url,original_image_url")
+      .eq("published", false).eq("review_status", "pending").is("scheduled_at", null)
+      .in("source_type", ["telegram", "website"])
+      .not("graphic_image_url", "is", null).not("original_image_url", "is", null)
+      .order("pub_date", { ascending: true }).limit(Number(settings.queue_limit || 10));
+    if (error) return { ok: false, message: "دریافت خبرهای آماده ناموفق بود." };
+    const ready = (candidates || []).filter((item: any) =>
+      /^https?:\/\//i.test(String(item.graphic_image_url || "")) &&
+      /^https?:\/\//i.test(String(item.original_image_url || "")) &&
+      (item.source_type !== "telegram" || Boolean(String(item.rewritten_title || "").trim()))
+    );
+    if (!ready.length) return { ok: true, count: 0, message: "خبر آماده‌ای برای چیدن صف پیدا نشد." };
+
+    const { data: latest } = await db.from("news_items").select("scheduled_at")
+      .eq("published", false).not("scheduled_at", "is", null)
+      .order("scheduled_at", { ascending: false }).limit(1).maybeSingle();
+    const intervalMs = Number(settings.schedule_interval_minutes || 60) * 60 * 1000;
+    const latestTime = latest?.scheduled_at ? Date.parse(latest.scheduled_at) : 0;
+    let cursor = Math.max(Date.now(), Number.isFinite(latestTime) ? latestTime : 0);
+    const planned: string[] = [];
+    for (const item of ready) {
+      cursor += intervalMs;
+      const scheduledAt = new Date(cursor).toISOString();
+      const { data: changed, error: updateError } = await db.from("news_items")
+        .update({ scheduled_at: scheduledAt, review_status: "approved", updated_at: new Date().toISOString() })
+        .eq("id", item.id).eq("published", false).eq("review_status", "pending").is("scheduled_at", null)
+        .select("id").maybeSingle();
+      if (updateError || !changed) continue;
+      await db.from("bot_activity").insert({
+        event_type: "scheduled", item_id: item.id, actor: "telegram:" + userId,
+        details: { title: item.rewritten_title || item.title, scheduled_at: scheduledAt, source: "bot_queue" },
+      });
+      planned.push(new Intl.DateTimeFormat("fa-IR", {
+        dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tehran",
+      }).format(new Date(scheduledAt)));
+    }
+    return {
+      ok: true, count: planned.length,
+      message: planned.length
+        ? "✅ تعداد " + planned.length + " پست وارد صف زمان‌بندی شد.\nزمان ارسال‌ها به‌ترتیب:\n" + planned.join("\n")
+        : "خبر آماده‌ای برای چیدن صف پیدا نشد.",
+    };
   };
 
   const callback = update.callback_query;
@@ -86,6 +211,59 @@ Deno.serve(async (req: Request) => {
       const messageId = callback.message?.message_id;
       if (data === "botsettings:refresh") {
         await answerCallback(String(callback.id));
+        await showBotSettings(chat, messageId);
+        return json({ ok: true });
+      }
+      if (data === "botsettings:schedule") {
+        await answerCallback(String(callback.id));
+        await showScheduleSettings(chat, messageId, userId);
+        return json({ ok: true });
+      }
+      if (data === "botsettings:queue") {
+        await answerCallback(String(callback.id));
+        await showQueueSettings(chat, messageId);
+        return json({ ok: true });
+      }
+      const intervalMatch = data.match(/^botsettings:interval:(15|30|60|120)$/);
+      if (intervalMatch) {
+        const minutes = Number(intervalMatch[1]);
+        const { error } = await db.from("bot_settings").update({
+          schedule_interval_minutes: minutes, updated_at: new Date().toISOString(), updated_by: "telegram:" + userId,
+        }).eq("id", "main");
+        if (error) {
+          await answerCallback(String(callback.id), "ذخیره فاصلهٔ زمان‌بندی ناموفق بود.");
+          return json({ ok: true });
+        }
+        await db.from("bot_activity").insert({
+          event_type: "settings_changed", actor: "telegram:" + userId,
+          details: { setting: "schedule_interval_minutes", value: minutes },
+        });
+        await answerCallback(String(callback.id), "فاصلهٔ ارسال به " + minutes + " دقیقه تغییر کرد.");
+        await showScheduleSettings(chat, messageId, userId);
+        return json({ ok: true });
+      }
+      const limitMatch = data.match(/^botsettings:queue_limit:(5|10|20|30)$/);
+      if (limitMatch) {
+        const limit = Number(limitMatch[1]);
+        const { error } = await db.from("bot_settings").update({
+          queue_limit: limit, updated_at: new Date().toISOString(), updated_by: "telegram:" + userId,
+        }).eq("id", "main");
+        if (error) {
+          await answerCallback(String(callback.id), "ذخیره تعداد صف ناموفق بود.");
+          return json({ ok: true });
+        }
+        await db.from("bot_activity").insert({
+          event_type: "settings_changed", actor: "telegram:" + userId,
+          details: { setting: "queue_limit", value: limit },
+        });
+        await answerCallback(String(callback.id), "تعداد پست در هر نوبت به " + limit + " تغییر کرد.");
+        await showQueueSettings(chat, messageId);
+        return json({ ok: true });
+      }
+      if (data === "botsettings:fill_queue") {
+        await answerCallback(String(callback.id), "در حال چیدن صف...");
+        const result = await fillBotQueue(userId);
+        await telegram("sendMessage", { chat_id: chat, text: result.message });
         await showBotSettings(chat, messageId);
         return json({ ok: true });
       }
