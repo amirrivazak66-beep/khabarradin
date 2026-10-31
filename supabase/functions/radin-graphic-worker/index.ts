@@ -100,7 +100,8 @@ Deno.serve(async(req)=>{
      const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\n"+String(item.rewritten_title||item.title||"خبر رادین")+(item.telegram_caption_edited&&item.rewritten_text?"\n\n"+String(item.rewritten_text):"")+sourceNote+received+qualityNote).slice(0,900);
      const keyboard:any[]=[
        [{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],
-       [{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]
+       [{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}],
+        [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+item.id}]
      ];
      if(item.graphic_quality_status==="review")keyboard.unshift([{text:"🔄 بازتولید پوستر",callback_data:"regenerate:"+item.id}]);
      const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendPhoto",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,photo:item.graphic_image_url,caption,reply_markup:{inline_keyboard:keyboard}}),signal:AbortSignal.timeout(20000)});
@@ -394,7 +395,8 @@ Deno.serve(async(req)=>{
      const qualityNote=graphicQualityStatus==="review"?"\n\n⚠️ بررسی کیفیت: "+String(graphicQualityNotes||"پوستر نیاز به بازبینی دارد.").slice(0,180):"";
      const keyboard:any[]=[
        [{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],
-       [{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]
+       [{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}],
+        [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+item.id}]
      ];
      if(graphicQualityStatus==="review")keyboard.unshift([{text:"🔄 بازتولید پوستر",callback_data:"regenerate:"+item.id}]);
      const sender=String(item.source_name||"").trim();
