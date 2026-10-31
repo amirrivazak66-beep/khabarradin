@@ -106,6 +106,55 @@ Deno.serve(async (req: Request) => {
     ] }, disable_web_page_preview: true });
   };
 
+  const botEventLabels: Record<string,string> = {
+    received:"خبر دریافت شد", graphic_ready:"پوستر آماده شد", preview_sent:"پیش‌نمایش ارسال شد",
+    scheduled:"زمان‌بندی شد", schedule_reordered:"ترتیب صف تغییر کرد", schedule_cancelled:"از صف خارج شد",
+    caption_edited:"کپشن ویرایش شد", headline_edited:"تیتر ویرایش شد", published:"منتشر شد",
+    rejected:"رد شد", settings_changed:"تنظیمات تغییر کرد", duplicate_detected:"خبر تکراری شناسایی شد",
+    graphic_failed:"خطای ساخت پوستر", publish_failed:"خطای انتشار", manual_retry:"تلاش مجدد",
+    graphic_regenerated:"پوستر بازتولید شد",
+  };
+  const showBotActivity = async (chatId: number|string, messageId: number) => {
+    const {data: events,error}=await db.from("bot_activity").select("event_type,item_id,actor,details,created_at")
+      .order("created_at",{ascending:false}).limit(12);
+    if(error){await telegram("editMessageText",{chat_id:chatId,message_id:messageId,text:"خواندن گزارش فعالیت ناموفق بود."});return;}
+    const ids=[...new Set((events||[]).map((e:any)=>e.item_id).filter(Boolean))];
+    const {data: items}=ids.length?await db.from("news_items").select("id,title,rewritten_title").in("id",ids):{data:[]};
+    const titles=new Map((items||[]).map((x:any)=>[x.id,x.rewritten_title||x.title||"خبر"]));
+    const rows=(events||[]).map((e:any)=>{
+      const date=new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Tehran"}).format(new Date(e.created_at));
+      const title=titles.get(e.item_id)||e.details?.title||"";
+      const reason=e.details?.reason||e.details?.headline||"";
+      return "• "+(botEventLabels[e.event_type]||e.event_type)+(title?" — "+String(title).slice(0,100):"")+(reason?"\n  "+String(reason).slice(0,130):"")+"\n  "+date;
+    });
+    const text=["📜 فعالیت‌های اخیر ربات","",...(rows.length?rows:["هنوز فعالیتی ثبت نشده است."])].join("\n").slice(0,3900);
+    await telegram("editMessageText",{chat_id:chatId,message_id:messageId,text,reply_markup:{inline_keyboard:[
+      [{text:"🔄 تازه‌سازی",callback_data:"botactivity:refresh"},{text:"↩️ تنظیمات ربات",callback_data:"botsettings:refresh"}],
+    ]},disable_web_page_preview:true});
+  };
+  const showBotErrors = async (chatId: number|string, messageId: number) => {
+    const {data: events,error}=await db.from("bot_activity").select("event_type,item_id,details,created_at")
+      .in("event_type",["graphic_failed","publish_failed"]).order("created_at",{ascending:false}).limit(8);
+    if(error){await telegram("editMessageText",{chat_id:chatId,message_id:messageId,text:"خواندن خطاهای اخیر ناموفق بود."});return;}
+    const ids=[...new Set((events||[]).map((e:any)=>e.item_id).filter(Boolean))];
+    const {data: items}=ids.length?await db.from("news_items").select("id,title,rewritten_title,published,review_status,graphic_image_url").in("id",ids):{data:[]};
+    const itemMap=new Map((items||[]).map((x:any)=>[x.id,x]));
+    const keyboard:any[][]=[];
+    const lines=["🚨 خطاهای اخیر ربات",""];
+    for(const e of events||[]){
+      const item=itemMap.get(e.item_id);
+      const date=new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Tehran"}).format(new Date(e.created_at));
+      lines.push("• "+(e.event_type==="graphic_failed"?"ساخت پوستر":"انتشار")+" — "+String(item?.rewritten_title||item?.title||"خبر حذف‌شده").slice(0,90));
+      lines.push("  "+String(e.details?.reason||"علت ثبت نشده").slice(0,180)+"\n  "+date);
+      if(item&&!item.published&&item.review_status!=="rejected"){
+        const action=e.event_type==="graphic_failed"?"graphic":"publish";
+        keyboard.push([{text:action==="graphic"?"🔄 تلاش مجدد ساخت پوستر":"🔄 تلاش مجدد انتشار",callback_data:"boterrors:retry:"+item.id+":"+action}]);
+      }
+    }
+    if(!events?.length)lines.push("خطای ثبت‌شده‌ای وجود ندارد.");
+    keyboard.push([{text:"🔄 تازه‌سازی",callback_data:"boterrors:refresh"},{text:"↩️ تنظیمات ربات",callback_data:"botsettings:refresh"}]);
+    await telegram("editMessageText",{chat_id:chatId,message_id:messageId,text:lines.join("\n").slice(0,3900),reply_markup:{inline_keyboard:keyboard},disable_web_page_preview:true});
+  };
   const showBotSettings = async (chatId: number | string, messageId?: number) => {
     const [{ data: settings, error }, counts] = await Promise.all([
       db.from("bot_settings").select("channel_username,auto_publish,schedule_interval_minutes,queue_limit")
@@ -135,7 +184,7 @@ Deno.serve(async (req: Request) => {
       [{ text: "🕒 تنظیم فاصلهٔ زمان‌بندی", callback_data: "botsettings:schedule" }],
       [{ text: "📦 تنظیم تعداد صف", callback_data: "botsettings:queue" }],
       [{ text: "📋 مشاهده و مدیریت صف زمان‌بندی", callback_data: "botqueue:refresh" }],
-      [{ text: "💳 گزارش مصرف AI", callback_data: "botusage:month" }],
+      [{ text: "💳 گزارش مصرف AI", callback_data: "botusage:month" }],\n      [{ text: "🚨 خطاهای اخیر", callback_data: "boterrors:refresh" }, { text: "📜 گزارش فعالیت", callback_data: "botactivity:refresh" }],
       [{ text: "📨 چیدن صف خبرهای آماده", callback_data: "botsettings:fill_queue" }],
       [{ text: "📣 راهنمای تغییر کانال", callback_data: "botsettings:channel" }],
       [{ text: "🔄 تازه‌سازی", callback_data: "botsettings:refresh" }],
@@ -286,6 +335,35 @@ Deno.serve(async (req: Request) => {
     if (!adminIds.includes(userId)) {
       await answerCallback(String(callback.id), "این عملیات فقط برای مدیر ربات در دسترس است.");
       return json({ ok: true });
+    }
+    if (data.startsWith("boterrors:")) {
+      const chat=callback.message?.chat?.id, messageId=callback.message?.message_id;
+      if(data==="boterrors:refresh"){await answerCallback(String(callback.id));await showBotErrors(chat,messageId);return json({ok:true});}
+      const match=data.match(/^boterrors:retry:([0-9a-f-]{36}):(graphic|publish)$/i);
+      if(!match){await answerCallback(String(callback.id),"درخواست تلاش مجدد نامعتبر است.");return json({ok:true});}
+      const [,itemId,action]=match;
+      const {data:item}=await db.from("news_items").select("id,title,rewritten_title,published,review_status,graphic_image_url,telegram_chat_id").eq("id",itemId).maybeSingle();
+      if(!item||item.published||item.review_status==="rejected"){await answerCallback(String(callback.id),"این خبر قابل تلاش مجدد نیست.");return json({ok:true});}
+      if(action==="graphic"){
+        const {error}=await db.from("news_items").update({graphic_image_url:null,graphic_quality_status:null,graphic_quality_score:null,graphic_quality_notes:null,review_status:"pending",updated_at:new Date().toISOString()}).eq("id",itemId).eq("published",false);
+        if(error){await answerCallback(String(callback.id),"بازگرداندن خبر به صف ساخت ناموفق بود.");return json({ok:true});}
+        await db.from("bot_activity").insert({event_type:"manual_retry",item_id:itemId,actor:"telegram:"+userId,details:{task:"graphic",title:item.rewritten_title||item.title}});
+        await answerCallback(String(callback.id),"خبر برای ساخت دوباره در صف قرار گرفت.");
+        await telegram("sendMessage",{chat_id:chat,text:"✅ خبر به صف ساخت پوستر برگشت. پردازش خودکار آن را برمی‌دارد و پیش‌نمایش را می‌فرستد."});
+      }else{
+        await answerCallback(String(callback.id),"در حال تلاش مجدد انتشار...");
+        const response=await fetch(supabaseUrl+"/functions/v1/radin-publish-news",{method:"POST",headers:{"content-type":"application/json","apikey":anonKey,"x-radin-telegram-secret":webhookSecret},body:JSON.stringify({id:itemId,action:"publish"})});
+        const result:any=await response.json().catch(()=>({}));
+        if(!response.ok||!result.ok){await db.from("bot_activity").insert({event_type:"publish_failed",item_id:itemId,actor:"telegram:"+userId,details:{reason:String(result.error||"انتشار مجدد ناموفق بود").slice(0,500),retry:true}});await telegram("sendMessage",{chat_id:chat,text:"❌ انتشار مجدد انجام نشد: "+String(result.error||"خطای نامشخص").slice(0,250)});}
+        else {await db.from("bot_activity").insert({event_type:"manual_retry",item_id:itemId,actor:"telegram:"+userId,details:{task:"publish",title:item.rewritten_title||item.title}});await telegram("sendMessage",{chat_id:chat,text:"✅ خبر با موفقیت منتشر شد."});}
+      }
+      await showBotErrors(chat,messageId);
+      return json({ok:true});
+    }
+    if (data.startsWith("botactivity:")) {
+      await answerCallback(String(callback.id));
+      await showBotActivity(callback.message?.chat?.id,callback.message?.message_id);
+      return json({ok:true});
     }
     if (data.startsWith("botusage:")) {
       await answerCallback(String(callback.id));
