@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
   }
   if (payload.scheduled && !cronAdmin) return json({ error: "Scheduled publishing is internal only" }, 403);
   const { data: item, error: itemError } = await db.from("news_items")
-    .select("id,title,summary,original_summary,rewritten_title,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id")
+    .select("id,title,summary,original_summary,rewritten_title,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id,scheduled_at")
     .eq("id", payload.id).maybeSingle();
   if (itemError) return json({ error: "Could not load story" }, 500);
   if (!item) return json({ error: "Story not found" }, 404);
@@ -67,6 +67,9 @@ Deno.serve(async (req: Request) => {
   if (item.published || item.telegram_message_id) return json({ error: "Story may already have been published; refusing duplicate send" }, 409);
   if (item.review_status === "rejected") return json({ error: "Rejected story cannot be published without re-review" }, 409);
   if (item.review_status === "publishing" && !payload.scheduled) return json({ error: "خبر در حال انتشار زمان‌بندی‌شده است؛ کمی بعد دوباره بررسی کنید." }, 409);
+  if (item.scheduled_at && new Date(item.scheduled_at).getTime() > Date.now() && !payload.scheduled) {
+    return json({ error: "این خبر برای زمان مشخصی زمان‌بندی شده است؛ برای انتشار فوری ابتدا زمان‌بندی را لغو کنید." }, 409);
+  }
 
   if (item.source_type === "telegram" && !String(item.rewritten_title || "").trim()) {
     return json({ error: "تیتر هوش مصنوعی برای پوستر آماده نیست؛ خبر بدون تیتر منتشر نمی‌شود." }, 409);
@@ -83,6 +86,7 @@ Deno.serve(async (req: Request) => {
   const botToken = Deno.env.get("BOT_TOKEN");
   if (!botToken) return json({ error: "Bot token is not configured" }, 500);
   const { data: settings } = await db.from("bot_settings").select("channel_username,review_required,auto_publish").eq("id", "main").maybeSingle();
+  if (payload.scheduled && settings?.auto_publish !== true) return json({ error: "انتشار زمان‌بندی‌شده در تنظیمات ربات خاموش است." }, 409);
   const channel = String(settings?.channel_username || "@radinnews").trim();
   if (!channel.startsWith("@")) return json({ error: "Destination channel must be a public @username" }, 400);
 
