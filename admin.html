@@ -687,7 +687,7 @@ a{text-decoration:none; color:inherit;}
     const {data:events,error:activityError}=await sb.from('bot_activity').select('event_type,item_id,actor,details,created_at').order('created_at',{ascending:false}).limit(50);
     if(activityError){activityEl.textContent='گزارش فعالیت در دسترس نیست: '+activityError.message;}
     else {
-      const labels={caption_updated:'کپشن ویرایش شد',scheduled:'انتشار زمان‌بندی شد',schedule_cancelled:'زمان‌بندی لغو شد',published:'خبر منتشر شد',rejected:'خبر رد شد',schedule_publish_failed:'انتشار زمان‌بندی‌شده ناموفق بود',received:'خبر از ربات دریافت شد',graphic_ready:'پوستر آماده شد',preview_sent:'پیش‌نمایش برای مدیر ارسال شد'};
+      const labels={caption_updated:'کپشن ویرایش شد',scheduled:'انتشار زمان‌بندی شد',schedule_cancelled:'زمان‌بندی لغو شد',published:'خبر منتشر شد',rejected:'خبر رد شد',schedule_publish_failed:'انتشار زمان‌بندی‌شده ناموفق بود',received:'خبر از ربات دریافت شد',graphic_ready:'پوستر آماده شد',preview_sent:'پیش‌نمایش برای مدیر ارسال شد',settings_changed:'تنظیمات ربات تغییر کرد'};
       activityEl.innerHTML=(events||[]).length?(events||[]).map(e=>'<div class="recent-news-item" style="margin:7px 0"><span class="cat-tag">'+botHtml(labels[e.event_type]||e.event_type)+'</span><span class="title">'+botHtml(e.details?.title||e.item_id||'عملیات ربات')+'</span><span class="time">'+botHtml(botFaDate(e.created_at))+'</span><span class="sub">'+botHtml(e.actor||'ربات')+'</span></div>').join(''):'<p class="sub">هنوز فعالیتی ثبت نشده است.</p>';
     }
     queueEl.querySelectorAll('[data-save-caption]').forEach(button=>button.addEventListener('click',async()=>{
