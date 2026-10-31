@@ -1043,7 +1043,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const { data: ready } = await db.from("news_items")
-    .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,pub_date,graphic_image_url,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
+    .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,source_url,pub_date,created_at,graphic_image_url,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
     .eq("id", itemId).maybeSingle();
   if (!ready?.graphic_image_url) {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر هنوز آماده نیست؛ خبر منتشر نشده است." });
@@ -1062,13 +1062,31 @@ Deno.serve(async (req: Request) => {
     ? "⚠️ بازطراحی AI ناموفق بود؛ پوستر با قالب رادین آماده شد."
     : "";
   const qualityWarning = ready.graphic_quality_status === "review" ? "\n\n⚠️ بررسی کیفیت: " + String(ready.graphic_quality_notes || "پوستر نیاز به بازبینی دارد.").slice(0, 180) : "";
+  const verificationNotes: string[] = [];
+  if (/^https?:\/\//i.test(String(ready.source_url || ""))) {
+    try { verificationNotes.push("🔎 منبع قابل پیگیری: " + new URL(String(ready.source_url)).hostname); } catch {}
+  } else if (ready.source_type === "telegram") {
+    const sender = String(ready.source_name || "").trim();
+    verificationNotes.push(sender.startsWith("@")
+      ? "📡 منبع فوروارد: " + sender + "؛ راستی‌آزمایی مستقل انجام نشده"
+      : sender ? "⚠️ منبع فوروارد: " + sender + "؛ شناسهٔ عمومی برای بررسی در دسترس نیست"
+      : "⚠️ منبع اصلی مشخص نیست؛ پیش از انتشار بررسی کنید");
+  }
+  const shortStoryWarning = String(ready.rewritten_text || ready.summary || "").trim().length < 120
+    ? "⚠️ متن توضیحی کوتاه است؛ جزئیات خبر را بررسی کنید"
+    : "";
+  const receivedAt = ready.created_at
+    ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tehran" }).format(new Date(ready.created_at))
+    : "";
   const previewText = [
     "پیش‌نمایش خبر — هنوز منتشر نشده",
     ready.rewritten_title || ready.title,
     (ready.rewritten_text || ready.summary) ? "\n" + (ready.rewritten_text || ready.summary) : "",
-    ...(ready.source_type === "telegram" ? [] : ["\nمنبع: " + (ready.source_name || sourceName)]),
-    "\nتاریخ: " + new Date(ready.pub_date || publishedAt).toLocaleDateString("fa-IR"),
-  ].join("\n") + qualityWarning;
+    ...verificationNotes,
+    shortStoryWarning,
+    "\nتاریخ خبر: " + new Date(ready.pub_date || publishedAt).toLocaleDateString("fa-IR"),
+    receivedAt ? "دریافت ربات: " + receivedAt : "",
+  ].filter(Boolean).join("\n") + qualityWarning;
   const safePreviewText = previewText.slice(0, 1024);
   const preview = await telegram("sendPhoto", {
     chat_id: chatId,
