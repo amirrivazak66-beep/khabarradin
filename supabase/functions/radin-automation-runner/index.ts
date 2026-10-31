@@ -11,14 +11,14 @@ Deno.serve(async(req)=>{
  const {data:authorized,error:authError}=await db.rpc("verify_radin_cron_secret",{candidate:supplied});
  if(authError||authorized!==true)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  const results=[];
+ EdgeRuntime.waitUntil((async()=>{
+  try{
+   const response=await fetch(url+"/functions/v1/rss-ingest",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","x-radin-cron-secret":supplied},body:"{}",signal:AbortSignal.timeout(45000)});
+   if(!response.ok)throw new Error("RSS ingest failed: "+response.status);
+  }catch(e){console.error("Background RSS ingest failed",e instanceof Error?e.message:"unknown");}
+ })());
  try{
-  const response=await fetch(url+"/functions/v1/rss-ingest",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","x-radin-cron-secret":supplied},body:"{}",signal:AbortSignal.timeout(45000)});
-  let payload:any={};try{payload=await response.json()}catch{}
-  if(!response.ok)throw new Error("RSS ingest failed: "+response.status+" "+JSON.stringify(payload).slice(0,300));
-  results.push({task:"rss-ingest",ok:true,result:payload});
- }catch(e){results.push({task:"rss-ingest",ok:false,error:e instanceof Error?e.message:"unknown"});}
- try{
-  const response=await fetch(url+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","x-radin-cron-secret":supplied},body:JSON.stringify({trigger:"scheduled"}),signal:AbortSignal.timeout(135000)});
+  const response=await fetch(url+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","x-radin-cron-secret":supplied},body:JSON.stringify({trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
   let payload:any={};try{payload=await response.json()}catch{}
   if(!response.ok)throw new Error("Graphic worker failed: "+response.status+" "+JSON.stringify(payload).slice(0,300));
   results.push({task:"radin-graphic-worker",ok:true,result:payload});
