@@ -169,10 +169,7 @@ Deno.serve(async(req)=>{
        }
      }catch(e){console.error("AI headline generation failed",e instanceof Error?e.message:"unknown");}
    }
-   if(isTelegram&&(headlineStatus!=="ai"||!graphicHeadline)){
-     if(extractiveHeadline){graphicHeadline=extractiveHeadline;headlineStatus="source_fallback";}
-     else throw new Error("AI headline unavailable; refusing titleless graphic");
-   }
+   if(isTelegram&&(headlineStatus!=="ai"||!graphicHeadline)){throw new Error("AI headline unavailable; refusing titleless graphic");}
    const geminiImageEnabled=isTelegram&&Boolean(geminiKey)&&Deno.env.get("GEMINI_IMAGE_ENABLED")==="true";
    if(geminiImageEnabled&&!openAiKey&&sourceImageUrl){
      try{
