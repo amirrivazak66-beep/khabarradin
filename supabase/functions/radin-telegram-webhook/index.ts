@@ -458,8 +458,13 @@ Deno.serve(async (req: Request) => {
       sourceUrl = null;
     }
   }
+  const forwardOrigin = message.forward_origin;
+  const forwardChat = forwardOrigin?.chat || forwardOrigin?.sender_chat || message.forward_from_chat;
+  const forwardMessageId = forwardOrigin?.message_id || message.forward_from_message_id;
+  const forwardedFromTelegram = Boolean(forwardOrigin || message.forward_from_chat || message.forward_from || message.forward_sender_name);
   const manualTelegramMedia = !sourceUrl && Boolean(message.photo?.length || videoMedia);
-  if (!sourceUrl && !manualTelegramMedia) {
+  const textOnlyForward = !sourceUrl && !manualTelegramMedia && forwardedFromTelegram && messageText.length > 0;
+  if (!sourceUrl && !manualTelegramMedia && !textOnlyForward) {
     await telegram("sendMessage", {
       chat_id: chatId,
       text: "لینک پیدا نشد. لینک خبر را بفرستید، یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس بدون لینک هم پذیرفته می‌شود.",
@@ -467,10 +472,6 @@ Deno.serve(async (req: Request) => {
     });
     return json({ ok: true });
   }
-  const forwardOrigin = message.forward_origin;
-  const forwardChat = forwardOrigin?.chat || forwardOrigin?.sender_chat || message.forward_from_chat;
-  const forwardMessageId = forwardOrigin?.message_id || message.forward_from_message_id;
-  const forwardedFromTelegram = Boolean(forwardOrigin || message.forward_from_chat || message.forward_from || message.forward_sender_name);
   const canonicalUrl = sourceUrl
     ? sourceUrl.toString()
     : "telegram:forwarded/" + String(forwardChat?.id || chatId) + "/" + String(forwardMessageId || message.message_id || update.update_id);
@@ -552,8 +553,13 @@ Deno.serve(async (req: Request) => {
       .replace(/\n{3,}/g, "\n\n")
       .trim();
   };
-  const titleCandidate = manualLines[0] || metaTitle || "";
-  const summaryCandidate = manualLines.slice(1).join("\n") || metaDescription || "";
+  let titleCandidate = manualLines[0] || metaTitle || "";
+  let summaryCandidate = manualLines.slice(1).join("\n") || metaDescription || "";
+  if (textOnlyForward && titleCandidate.length > 160) {
+    const sentence = titleCandidate.match(/^.{35,150}?[.!؟](?:\s|$)/u)?.[0]?.trim();
+    titleCandidate = sentence || titleCandidate.slice(0, 120).trim();
+    summaryCandidate = [manualText, summaryCandidate].filter(Boolean).join("\n").slice(0, 5000);
+  }
   const title = (forwardedFromTelegram ? stripForwardTrace(titleCandidate) : titleCandidate).slice(0, 500);
   const summary = (forwardedFromTelegram ? stripForwardTrace(summaryCandidate) : summaryCandidate).slice(0, 5000);
   const sourceName = forwardedFromTelegram ? forwardSource : (sourceUrl?.hostname.replace(/^www\./i, "") || forwardSource);
@@ -613,12 +619,8 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
-  if (!imageUrl) {
-    await telegram("sendMessage", {
-      chat_id: chatId,
-      text: "برای ساخت پوستر، عکس یا کاور ویدیو لازم است. اگر ویدیو کاور ندارد، آن را همراه یک تصویر خبر یا با کاور دوباره فوروارد کنید.",
-      disable_web_page_preview: true,
-    });
+  if (!imageUrl && !textOnlyForward) {
+    await telegram("sendMessage", { chat_id: chatId, text: "برای این خبر تصویر پیدا نشد. لطفاً عکس را همراه خبر فوروارد کنید.", disable_web_page_preview: true });
     return json({ ok: true });
   }
 
@@ -634,7 +636,9 @@ Deno.serve(async (req: Request) => {
       summary: summary || null,
       original_title: title,
       original_summary: summary || null,
-      image_url: imageUrl,
+      image_url: imageUrl || null,
+      telegram_chat_id: forwardedFromTelegram ? Number(chatId) : null,
+      telegram_preview_message_id: null,
       video_file_id: videoFileId || null,
       source_url: canonicalUrl,
       source_name: sourceName,
@@ -651,7 +655,7 @@ Deno.serve(async (req: Request) => {
     itemId = inserted.id;
   } else {
     const { error } = await db.from("news_items").update({
-      title, summary: summary || null, image_url: imageUrl, video_file_id: videoFileId || null, source_name: sourceName,
+      title, summary: summary || null, image_url: imageUrl || null, telegram_chat_id: forwardedFromTelegram ? Number(chatId) : null, video_file_id: videoFileId || null, source_name: sourceName,
       original_title: title, original_summary: summary || null, source_type: forwardedFromTelegram ? "telegram" : (sourceUrl ? "website" : "telegram"),
       pub_date: publishedAt, review_status: "pending", graphic_image_url: null, original_image_url: null, updated_at: new Date().toISOString(),
     }).eq("id", itemId).eq("published", false);
@@ -666,7 +670,7 @@ Deno.serve(async (req: Request) => {
     method: "POST",
     headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
     body: JSON.stringify({ item_id: itemId }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(140000),
   });
   let workerResult: any = {};
   try { workerResult = await worker.json(); } catch {}
@@ -674,14 +678,7 @@ Deno.serve(async (req: Request) => {
     console.error("Graphic generation failed", worker.status, JSON.stringify(workerResult).slice(0, 500));
     const failedItem = (workerResult.results || []).find((row: any) => row.id === itemId);
     const headlineUnavailable = /AI headline unavailable/i.test(String(failedItem?.error || ""));
-    const headlineMessage = failedItem?.ai_status === "service_busy"
-      ? "مدل رایگان Gemini موقتاً شلوغ است؛ کلید ثبت شده و خبر بدون تیتر منتشر نمی‌شود. چند دقیقه بعد همین خبر را دوباره بفرست."
-      : failedItem?.ai_status === "rate_limited"
-      ? "سهمیهٔ درخواست رایگان Gemini فعلاً به سقف رسیده است؛ خبر بدون تیتر منتشر نمی‌شود. بعداً دوباره تلاش کن."
-      : "ساخت تیتر Gemini ناموفق بود؛ خبر بدون تیتر منتشر نمی‌شود.";
-    await telegram("sendMessage", { chat_id: chatId, text: headlineUnavailable
-      ? headlineMessage
-      : "خبر ثبت شد، اما ساخت پوستر کامل نشد. در استودیو گرافیک آن را بررسی کنید؛ انتشار انجام نشده است." });
+    await telegram("sendMessage", { chat_id: chatId, text: "خبر ثبت شد و در صف آماده‌سازی باقی ماند. ربات به‌صورت خودکار دوباره تلاش می‌کند و پس از آماده‌شدن پوستر همین‌جا می‌فرستد؛ نیازی به ارسال دوباره نیست." });
     return json({ ok: true });
   }
 
@@ -725,7 +722,9 @@ Deno.serve(async (req: Request) => {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر آماده شد، اما ارسال پیش‌نمایش در گفتگو ناموفق بود. از پنل مدیریت خبر را بررسی کنید." });
   } else {
     console.log("Manual story preview delivered", itemId, preview.result.result?.message_id || "unknown");
-    await db.from("bot_activity").insert({event_type:"preview_sent",item_id:itemId,actor:"telegram",details:{preview_message_id:preview.result.result?.message_id||null,title}});
+    const previewMessageId=preview.result.result?.message_id||null;
+    await db.from("news_items").update({telegram_preview_message_id:previewMessageId}).eq("id",itemId);
+    await db.from("bot_activity").insert({event_type:"preview_sent",item_id:itemId,actor:"telegram",details:{preview_message_id:previewMessageId,title}});
   }
   if (designNote) {
     await telegram("sendMessage", { chat_id: chatId, text: designNote, disable_web_page_preview: true });
