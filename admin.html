@@ -207,7 +207,7 @@ a{text-decoration:none; color:inherit;}
         <a data-view="viewFeeds"><i class="fa-solid fa-rss"></i> فیدهای RSS</a>
         <a data-view="viewNews"><i class="fa-solid fa-newspaper"></i> خبرها</a>
         <a data-view="viewGraphicStudio"><i class="fa-solid fa-palette"></i> استودیو گرافیک</a>
-        <a data-view="viewBotSettings"><i class="fa-brands fa-telegram"></i> تنظیمات ربات تلگرام</a>
+        <a data-view="viewBotSettings"><i class="fa-brands fa-telegram"></i> ربات</a>
         <a data-view="viewSecurity"><i class="fa-solid fa-lock"></i> امنیت</a>
       </nav>
       <div class="spacer"></div>
@@ -274,15 +274,31 @@ a{text-decoration:none; color:inherit;}
       <section id="viewBotSettings" class="view">
         <div class="panel">
           <h3><i class="fa-brands fa-telegram"></i> تنظیمات ربات تلگرام</h3>
-          <p class="sub">این تنظیمات در دیتابیس ذخیره می‌شوند. تا زمانی که اتصال عملیاتی هر گزینه به سرویس ربات تکمیل نشده، آن را تنظیمات ذخیره‌شده در نظر بگیر؛ نه تضمین تغییر رفتار ربات.</p>
+          <p class="sub">تنظیمات عملیاتی دریافت، بازبینی و انتشار زمان‌بندی‌شدهٔ خبرهای ربات را از اینجا مدیریت کنید.</p>
           <div class="notice">🔒 توکن ربات در این پنل نمایش داده نمی‌شود. انتشار خودکار به‌صورت پیش‌فرض خاموش است تا خبر بدون تأیید منتشر نشود.</div>
           <div class="field"><label for="botChannel">نام کاربری کانال مقصد (مثلاً @radinnews)</label><input id="botChannel" type="text" dir="ltr" placeholder="@radinnews"></div>
           <div class="field"><label for="botInterval">بازه دریافت خبر (دقیقه)</label><select id="botInterval" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit"><option value="5">۵ دقیقه</option><option value="10">۱۰ دقیقه</option><option value="15">۱۵ دقیقه</option><option value="30">۳۰ دقیقه</option><option value="60">۶۰ دقیقه</option></select><p class="sub" style="margin:6px 0 0">توجه: ذخیره این عدد به‌تنهایی زمان‌بندی pg_cron را تغییر نمی‌دهد؛ اتصال آن به زمان‌بندی سرور هنوز باید انجام شود.</p></div>
           <label style="display:flex;align-items:center;gap:10px;margin:16px 0"><input id="botReviewRequired" type="checkbox" checked> تأیید مدیر قبل از انتشار الزامی باشد</label>
-          <label style="display:flex;align-items:center;gap:10px;margin:16px 0;opacity:.6"><input id="botAutoPublish" type="checkbox" disabled> انتشار خودکار خبرها (فعلاً غیرفعال)</label>
+          <label style="display:flex;align-items:center;gap:10px;margin:16px 0"><input id="botAutoPublish" type="checkbox"> انتشار خودکار خبرهای زمان‌بندی‌شده فعال باشد</label><p class="sub" style="margin:-8px 0 14px">این گزینه فقط خبرهایی را منتشر می‌کند که شما در صف برایشان زمان تعیین کرده‌اید. زمان‌بندی بر اساس ساعت محلی دستگاه ثبت می‌شود.</p>
           <div class="row-actions"><button class="btn-primary" id="saveBotSettingsBtn">ذخیره تنظیمات</button><button class="btn-secondary" id="reloadBotSettingsBtn">بارگذاری دوباره</button></div>
           <div class="save-msg" id="botSettingsMsg"></div>
           <div class="login-error" id="botSettingsError" style="display:none"></div>
+        </div>
+        <div class="panel">
+          <h3><i class="fa-solid fa-coins"></i> اعتبار API اوپن‌ای‌آی</h3>
+          <p class="sub">ماندهٔ اعتبار پیش‌پرداختی از مسیر رسمی و امن API برای نمایش در این پنل قابل دریافت نیست. برای دیدن عدد به‌روز، صفحهٔ صورتحساب حساب OpenAI را باز کنید؛ کلید مدیریتی را در سایت قرار نمی‌دهیم.</p>
+          <div class="row-actions"><a class="btn-primary" href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" rel="noopener">مشاهدهٔ آنلاین ماندهٔ اعتبار ↗</a></div>
+        </div>
+        <div class="panel">
+          <h3><i class="fa-solid fa-clock"></i> صف خبرهای ربات</h3>
+          <p class="sub">کپشن خبرهای فورواردشده را ویرایش کنید، سپس ساعت انتشار را تعیین کنید. صف هر دقیقه بررسی می‌شود؛ انتشار خودکار باید در تنظیمات بالا روشن باشد.</p>
+          <div class="row-actions"><button class="btn-secondary" id="reloadBotOperationsBtn">به‌روزرسانی صف و گزارش</button></div>
+          <h4 style="margin:16px 0 10px">در انتظار انتشار / زمان‌بندی</h4>
+          <div id="botQueueList">در حال بارگذاری صف...</div>
+          <h4 style="margin:22px 0 10px">خبرهای منتشرشده از ربات</h4>
+          <div id="botSentList">در حال بارگذاری...</div>
+          <h4 style="margin:22px 0 10px">گزارش فعالیت‌های ربات</h4>
+          <div id="botActivityList">در حال بارگذاری...</div>
         </div>
         <div class="panel">
           <h3>وضعیت اتصال</h3>
@@ -344,6 +360,7 @@ a{text-decoration:none; color:inherit;}
     loadFeedsFromDb();
     renderRecentNews();
     loadBotSettings();
+    loadBotOperations();
     loadEditorialSettings();
     loadSources();
   }
@@ -392,6 +409,7 @@ a{text-decoration:none; color:inherit;}
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById(link.dataset.view).classList.add('active');
       document.getElementById('viewTitle').textContent = link.textContent.trim();
+      if(link.dataset.view==='viewBotSettings') loadBotOperations();
     });
   });
 
@@ -627,6 +645,83 @@ a{text-decoration:none; color:inherit;}
     });
   }
 
+  // ---- Bot operations: caption editing, scheduling and activity history ----
+  const botHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const botLocalDateValue = value => {
+    if (!value) return '';
+    const d = new Date(value);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+  };
+  const botFaDate = value => value ? new Date(value).toLocaleString('fa-IR') : '—';
+  async function recordBotActivity(eventType, itemId, details = {}) {
+    const { error } = await sb.from('bot_activity').insert({event_type:eventType,item_id:itemId || null,actor:currentEmail,details});
+    if (error) console.warn('Bot activity log failed', error.message);
+  }
+  async function loadBotOperations(){
+    const queueEl=document.getElementById('botQueueList'), sentEl=document.getElementById('botSentList'), activityEl=document.getElementById('botActivityList');
+    if(!queueEl || !sentEl || !activityEl)return;
+    queueEl.textContent='در حال بارگذاری صف...'; sentEl.textContent='در حال بارگذاری...'; activityEl.textContent='در حال بارگذاری...';
+    const {data:items,error}=await sb.from('news_items')
+      .select('id,title,rewritten_title,summary,rewritten_text,original_summary,image_url,pub_date,published,review_status,source_type,scheduled_at,telegram_message_id,processed_at')
+      .eq('source_type','telegram').order('pub_date',{ascending:false}).limit(100);
+    if(error){queueEl.textContent='خطا در بارگذاری صف: '+error.message;return;}
+    const queued=(items||[]).filter(x=>!x.published && x.review_status!=='rejected').slice(0,40);
+    const sent=(items||[]).filter(x=>x.published).sort((a,b)=>new Date(b.processed_at||b.pub_date)-new Date(a.processed_at||a.pub_date)).slice(0,30);
+    queueEl.innerHTML=queued.length?queued.map(item=>{
+      const body=item.rewritten_text||item.original_summary||item.summary||'';
+      const headline=item.rewritten_title||item.title||'';
+      const when=item.scheduled_at?'<div class="sub">زمان فعلی: '+botHtml(botFaDate(item.scheduled_at))+'</div>':'';
+      return '<article class="recent-news-item" style="display:block;margin:12px 0;padding:14px;border:1px solid #e3e7ee;border-radius:12px">'
+        +'<div style="font-weight:800;margin-bottom:8px">'+botHtml(headline)+'</div>'
+        +'<label>متن کپشن خبر</label><textarea data-caption="'+botHtml(item.id)+'" rows="4" style="width:100%;margin:6px 0 10px;border:1px solid #d9e0ea;border-radius:8px;padding:10px;font:inherit">'+botHtml(body)+'</textarea>'
+        +'<div class="field"><label>زمان انتشار (ساعت محلی دستگاه)</label><input type="datetime-local" data-time="'+botHtml(item.id)+'" value="'+botHtml(botLocalDateValue(item.scheduled_at))+'" style="padding:9px;border:1px solid #d9e0ea;border-radius:8px"></div>'
+        +when+'<div class="row-actions"><button class="btn-secondary" data-save-caption="'+botHtml(item.id)+'">ذخیره کپشن</button><button class="btn-primary" data-schedule="'+botHtml(item.id)+'">ذخیره زمان انتشار</button>'
+        +(item.scheduled_at?'<button class="btn-secondary" data-cancel-schedule="'+botHtml(item.id)+'">لغو زمان‌بندی</button>':'')+'</div></article>';
+    }).join(''):'<p class="sub">خبر فورواردشده‌ای در صف نیست.</p>';
+    sentEl.innerHTML=sent.length?sent.map(item=>{
+      const href=item.telegram_message_id?'https://t.me/radinnews/'+encodeURIComponent(item.telegram_message_id):'https://t.me/radinnews';
+      return '<div class="recent-news-item" style="margin:8px 0"><span class="title">'+botHtml(item.rewritten_title||item.title)+'</span><span class="time">'+botHtml(botFaDate(item.processed_at||item.pub_date))+'</span><a class="btn-secondary" href="'+href+'" target="_blank" rel="noopener">مشاهده در کانال ↗</a></div>';
+    }).join(''):'<p class="sub">هنوز خبری از مسیر ربات منتشر نشده است.</p>';
+    const {data:events,error:activityError}=await sb.from('bot_activity').select('event_type,item_id,actor,details,created_at').order('created_at',{ascending:false}).limit(50);
+    if(activityError){activityEl.textContent='گزارش فعالیت در دسترس نیست: '+activityError.message;}
+    else {
+      const labels={caption_updated:'کپشن ویرایش شد',scheduled:'انتشار زمان‌بندی شد',schedule_cancelled:'زمان‌بندی لغو شد',published:'خبر منتشر شد',rejected:'خبر رد شد',schedule_publish_failed:'انتشار زمان‌بندی‌شده ناموفق بود',received:'خبر از ربات دریافت شد'};
+      activityEl.innerHTML=(events||[]).length?(events||[]).map(e=>'<div class="recent-news-item" style="margin:7px 0"><span class="cat-tag">'+botHtml(labels[e.event_type]||e.event_type)+'</span><span class="title">'+botHtml(e.details?.title||e.item_id||'عملیات ربات')+'</span><span class="time">'+botHtml(botFaDate(e.created_at))+'</span><span class="sub">'+botHtml(e.actor||'ربات')+'</span></div>').join(''):'<p class="sub">هنوز فعالیتی ثبت نشده است.</p>';
+    }
+    queueEl.querySelectorAll('[data-save-caption]').forEach(button=>button.addEventListener('click',async()=>{
+      const id=button.dataset.saveCaption, caption=queueEl.querySelector('[data-caption="'+id+'"]').value.trim();
+      if(!caption){alert('متن کپشن خالی است.');return;}
+      button.disabled=true;
+      const {error}=await sb.from('news_items').update({rewritten_text:caption,updated_at:new Date().toISOString()}).eq('id',id).eq('published',false);
+      if(error)alert('ذخیره کپشن ناموفق بود: '+error.message);
+      else {await recordBotActivity('caption_updated',id,{title:(items||[]).find(x=>x.id===id)?.rewritten_title||'خبر'});alert('کپشن ذخیره شد.');}
+      await loadBotOperations();
+    }));
+    queueEl.querySelectorAll('[data-schedule]').forEach(button=>button.addEventListener('click',async()=>{
+      const id=button.dataset.schedule, input=queueEl.querySelector('[data-time="'+id+'"]'), value=input.value;
+      if(!document.getElementById('botAutoPublish').checked){alert('ابتدا «انتشار خودکار خبرهای زمان‌بندی‌شده» را در تنظیمات ربات روشن و ذخیره کنید.');return;}
+      if(!value){alert('زمان انتشار را انتخاب کنید.');return;}
+      const when=new Date(value);
+      if(!Number.isFinite(when.getTime())||when.getTime()<=Date.now()){alert('زمان انتشار باید در آینده باشد.');return;}
+      const caption=queueEl.querySelector('[data-caption="'+id+'"]').value.trim();
+      if(!caption){alert('متن کپشن خالی است.');return;}
+      button.disabled=true;
+      const {error}=await sb.from('news_items').update({rewritten_text:caption,scheduled_at:when.toISOString(),review_status:'approved',updated_at:new Date().toISOString()}).eq('id',id).eq('published',false);
+      if(error)alert('زمان‌بندی ناموفق بود: '+error.message);
+      else {await recordBotActivity('scheduled',id,{scheduled_at:when.toISOString()});alert('خبر برای زمان انتخاب‌شده زمان‌بندی شد.');}
+      await loadBotOperations();
+    }));
+    queueEl.querySelectorAll('[data-cancel-schedule]').forEach(button=>button.addEventListener('click',async()=>{
+      const id=button.dataset.cancelSchedule;if(!confirm('زمان‌بندی این خبر لغو شود؟ خبر دوباره به صف بررسی برمی‌گردد.'))return;
+      button.disabled=true;
+      const {error}=await sb.from('news_items').update({scheduled_at:null,review_status:'pending',updated_at:new Date().toISOString()}).eq('id',id).eq('published',false);
+      if(error)alert('لغو زمان‌بندی ناموفق بود: '+error.message);
+      else await recordBotActivity('schedule_cancelled',id,{});
+      await loadBotOperations();
+    }));
+  }
+  document.getElementById('reloadBotOperationsBtn')?.addEventListener('click',loadBotOperations);
+
   // ---- Telegram bot settings (stored in Supabase) ----
   async function loadBotSettings(){
     const msg = document.getElementById('botSettingsMsg');
@@ -647,8 +742,8 @@ a{text-decoration:none; color:inherit;}
     document.getElementById('botChannel').value = data.channel_username || '@radinnews';
     document.getElementById('botInterval').value = String(data.poll_interval_minutes || 15);
     document.getElementById('botReviewRequired').checked = data.review_required !== false;
-    document.getElementById('botAutoPublish').checked = false;
-    document.getElementById('botConnectionStatus').textContent = 'تنظیمات از دیتابیس خوانده شد. وب‌هوک تلگرام فعال است؛ اتصال عملیاتی تنظیمات زمان‌بندی و انتشار هنوز تکمیل نشده است.';
+    document.getElementById('botAutoPublish').checked = data.auto_publish === true;
+    document.getElementById('botConnectionStatus').textContent = 'تنظیمات ربات از دیتابیس بارگذاری شد. صف زمان‌بندی‌شده هر دقیقه بررسی می‌شود.';
   }
   document.getElementById('reloadBotSettingsBtn').addEventListener('click', loadBotSettings);
   document.getElementById('saveBotSettingsBtn').addEventListener('click', async () => {
@@ -665,7 +760,7 @@ a{text-decoration:none; color:inherit;}
     const { error } = await sb.from('bot_settings').update({
       channel_username: channel,
       review_required: document.getElementById('botReviewRequired').checked,
-      auto_publish: false,
+      auto_publish: document.getElementById('botAutoPublish').checked,
       poll_interval_minutes: Number(document.getElementById('botInterval').value),
       updated_at: new Date().toISOString(),
       updated_by: currentEmail
@@ -675,7 +770,7 @@ a{text-decoration:none; color:inherit;}
       err.textContent = 'ذخیره ناموفق بود: ' + error.message;
       err.style.display = 'block'; return;
     }
-    msg.textContent = 'تنظیمات در دیتابیس ذخیره شد؛ زمان‌بندی و انتشار هنوز به این مقادیر متصل نیستند.';
+    msg.textContent = 'تنظیمات عملیاتی ربات ذخیره شد.';
     msg.style.display = 'block';
     document.getElementById('botConnectionStatus').textContent = 'آخرین ذخیره تنظیمات: ' + new Date().toLocaleString('fa-IR');
   });
