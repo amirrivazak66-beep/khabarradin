@@ -366,18 +366,36 @@ Deno.serve(async (req: Request) => {
     await telegram("sendMessage", { chat_id: chatId, text: reply, disable_web_page_preview: true });
     return json({ ok: true });
   }
+  if (messageText === "⚙️ تنظیمات ربات" || messageText === "تنظیمات ربات") {
+    if (!isAdmin) {
+      await telegram("sendMessage", { chat_id: chatId, text: "این بخش فقط برای مدیر ربات در دسترس است." });
+    } else {
+      await showBotSettings(chatId);
+    }
+    return json({ ok: true });
+  }
   if (command === "/start") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس یا ویدیو بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n/settings — تنظیمات مدیر\n/help — راهنما",
+      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس یا ویدیو بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n\nاز دکمهٔ ثابت پایین صفحه برای بازکردن تنظیمات ربات استفاده کنید.",
+      reply_markup: {
+        keyboard: [[{ text: "⚙️ تنظیمات ربات" }], [{ text: "ℹ️ راهنما" }]],
+        resize_keyboard: true,
+        is_persistent: true,
+      },
       disable_web_page_preview: true,
     });
     return json({ ok: true });
   }
-  if (command === "/help") {
+  if (command === "/help" || messageText === "ℹ️ راهنما") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nمدیر: /settings تنظیمات ربات، /channel @username تغییر کانال مقصد.\nلینک منبع در کپشن کانال درج نمی‌شود.",
+      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nمدیر: از دکمهٔ «⚙️ تنظیمات ربات» برای تنظیم صف و زمان‌بندی استفاده کنید.\nلینک منبع در کپشن کانال درج نمی‌شود.",
+      reply_markup: {
+        keyboard: [[{ text: "⚙️ تنظیمات ربات" }], [{ text: "ℹ️ راهنما" }]],
+        resize_keyboard: true,
+        is_persistent: true,
+      },
       disable_web_page_preview: true,
     });
     return json({ ok: true });
