@@ -170,7 +170,7 @@ Deno.serve(async(req)=>{
    }
    if(isTelegram&&(headlineStatus!=="ai"||!graphicHeadline)){throw new Error("AI headline unavailable; refusing titleless graphic");}
    const geminiImageEnabled=isTelegram&&Boolean(geminiKey)&&Deno.env.get("GEMINI_IMAGE_ENABLED")==="true";
-   if(geminiImageEnabled&&sourceImageUrl){
+   if(geminiImageEnabled&&!openAiKey&&sourceImageUrl){
      try{
        const encoded=imageData.match(/^data:([^;]+);base64,([\\s\\S]+)$/);
        if(!encoded)throw new Error("Source image encoding invalid");
@@ -195,7 +195,7 @@ Deno.serve(async(req)=>{
          throw new Error("Gemini image redesign failed; refusing non-Gemini poster");
        }
      }catch(e){aiStatus="gemini_image_error";console.error("Gemini image redesign failed",e instanceof Error?e.message:"unknown");throw new Error("Gemini image redesign failed; refusing non-Gemini poster");}
-   }else if(isTelegram&&!geminiKey&&openAiKey&&sourceImageUrl&&!apiNoCredits){
+   }else if(isTelegram&&openAiKey&&sourceImageUrl&&!apiNoCredits){
      try{
        const aiResponse=await fetch("https://api.openai.com/v1/images/edits",{
          method:"POST",headers:{"Authorization":"Bearer "+openAiKey,"Content-Type":"application/json"},
