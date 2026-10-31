@@ -65,6 +65,47 @@ Deno.serve(async (req: Request) => {
     };
   };
 
+  const showAiUsage = async (chatId: number | string, messageId: number) => {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const { data: events, error } = await db.from("ai_usage_events")
+      .select("provider,model,task,status,estimated_cost_usd,cost_known,created_at")
+      .gte("created_at", monthStart).order("created_at", { ascending: false }).limit(1000);
+    if (error) {
+      await telegram("editMessageText", { chat_id: chatId, message_id: messageId, text: "خواندن گزارش مصرف AI ناموفق بود." });
+      return;
+    }
+    const rows = events || [];
+    const total = rows.filter((row: any) => row.cost_known).reduce((sum: number, row: any) => sum + Number(row.estimated_cost_usd || 0), 0);
+    const unknown = rows.filter((row: any) => !row.cost_known).length;
+    const openAiCalls = rows.filter((row: any) => row.provider === "openai").length;
+    const geminiCalls = rows.filter((row: any) => row.provider === "gemini").length;
+    const groups = new Map<string, { calls: number; cost: number }>();
+    for (const row of rows) {
+      const key = String(row.provider) + " / " + String(row.task);
+      const current = groups.get(key) || { calls: 0, cost: 0 };
+      current.calls++;
+      if (row.cost_known) current.cost += Number(row.estimated_cost_usd || 0);
+      groups.set(key, current);
+    }
+    const breakdown = [...groups.entries()].sort((a, b) => b[1].cost - a[1].cost).slice(0, 8)
+      .map(([key, value]) => "• " + key + ": " + value.calls + " درخواست — $" + value.cost.toFixed(6));
+    const text = [
+      "💳 مصرف AI از ابتدای ماه جاری (UTC)",
+      "",
+      "برآورد هزینهٔ OpenAI: $" + total.toFixed(6),
+      "درخواست‌ها: OpenAI " + openAiCalls + " | Gemini " + geminiCalls + " (رایگان)",
+      unknown ? "هزینهٔ نامشخص: " + unknown + " درخواست" : "",
+      "",
+      ...breakdown,
+      "",
+      "این رقم از usage واقعی هر درخواست و نرخ ذخیره‌شدهٔ همان زمان محاسبه شده؛ ممکن است به‌علت گردکردن با صورتحساب اختلاف جزئی داشته باشد.",
+    ].filter(Boolean).join("\n").slice(0, 3900);
+    await telegram("editMessageText", { chat_id: chatId, message_id: messageId, text, reply_markup: { inline_keyboard: [
+      [{ text: "🔄 تازه‌سازی", callback_data: "botusage:month" }, { text: "↩️ تنظیمات ربات", callback_data: "botsettings:refresh" }],
+    ] }, disable_web_page_preview: true });
+  };
+
   const showBotSettings = async (chatId: number | string, messageId?: number) => {
     const [{ data: settings, error }, counts] = await Promise.all([
       db.from("bot_settings").select("channel_username,auto_publish,schedule_interval_minutes,queue_limit")
@@ -94,6 +135,7 @@ Deno.serve(async (req: Request) => {
       [{ text: "🕒 تنظیم فاصلهٔ زمان‌بندی", callback_data: "botsettings:schedule" }],
       [{ text: "📦 تنظیم تعداد صف", callback_data: "botsettings:queue" }],
       [{ text: "📋 مشاهده و مدیریت صف زمان‌بندی", callback_data: "botqueue:refresh" }],
+      [{ text: "💳 گزارش مصرف AI", callback_data: "botusage:month" }],
       [{ text: "📨 چیدن صف خبرهای آماده", callback_data: "botsettings:fill_queue" }],
       [{ text: "📣 راهنمای تغییر کانال", callback_data: "botsettings:channel" }],
       [{ text: "🔄 تازه‌سازی", callback_data: "botsettings:refresh" }],
@@ -243,6 +285,11 @@ Deno.serve(async (req: Request) => {
     const data = String(callback.data ?? "");
     if (!adminIds.includes(userId)) {
       await answerCallback(String(callback.id), "این عملیات فقط برای مدیر ربات در دسترس است.");
+      return json({ ok: true });
+    }
+    if (data.startsWith("botusage:")) {
+      await answerCallback(String(callback.id));
+      await showAiUsage(callback.message?.chat?.id, callback.message?.message_id);
       return json({ ok: true });
     }
     if (data.startsWith("botqueue:")) {
