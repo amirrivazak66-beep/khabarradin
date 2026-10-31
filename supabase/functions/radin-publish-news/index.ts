@@ -18,31 +18,37 @@ Deno.serve(async (req: Request) => {
   const telegramSecret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
   const suppliedTelegramSecret = req.headers.get("x-radin-telegram-secret") || "";
   const telegramAdmin = Boolean(telegramSecret) && suppliedTelegramSecret.length === telegramSecret.length && suppliedTelegramSecret === telegramSecret;
+  const cronCandidate = req.headers.get("x-radin-cron-secret") || "";
   const authHeader = req.headers.get("authorization") || "";
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Server configuration missing" }, 500);
-  if (!telegramAdmin && !authHeader.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
+  const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  let cronAdmin = false;
+  if (cronCandidate) {
+    const { data: authorized } = await db.rpc("verify_radin_cron_secret", { candidate: cronCandidate });
+    cronAdmin = authorized === true;
+  }
+  if (!telegramAdmin && !cronAdmin && !authHeader.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
 
-  const authClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  if (!telegramAdmin) {
+  if (!telegramAdmin && !cronAdmin) {
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
     const { data: authData, error: authError } = await authClient.auth.getUser();
     if (authError || !authData.user || authData.user.email !== "amir.rivazak66@gmail.com") {
       return json({ error: "Admin only" }, 403);
     }
   }
 
-  let payload: { id?: string; action?: string };
+  let payload: { id?: string; action?: string; scheduled?: boolean };
   try { payload = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   if (!payload.id || !["publish", "reject"].includes(payload.action || "")) {
     return json({ error: "id and action=publish|reject required" }, 400);
   }
-
-  const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (payload.scheduled && !cronAdmin) return json({ error: "Scheduled publishing is internal only" }, 403);
   const { data: item, error: itemError } = await db.from("news_items")
     .select("id,title,summary,original_summary,rewritten_title,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id")
     .eq("id", payload.id).maybeSingle();
@@ -54,11 +60,13 @@ Deno.serve(async (req: Request) => {
       .update({ published: false, review_status: "rejected", updated_at: new Date().toISOString() })
       .eq("id", item.id);
     if (error) return json({ error: "Could not reject story" }, 500);
+    await db.from("bot_activity").insert({event_type:"rejected",item_id:item.id,actor:telegramAdmin?"telegram":"admin",details:{title:item.rewritten_title||item.title}});
     return json({ ok: true, action: "rejected" });
   }
 
   if (item.published || item.telegram_message_id) return json({ error: "Story may already have been published; refusing duplicate send" }, 409);
   if (item.review_status === "rejected") return json({ error: "Rejected story cannot be published without re-review" }, 409);
+  if (item.review_status === "publishing" && !payload.scheduled) return json({ error: "خبر در حال انتشار زمان‌بندی‌شده است؛ کمی بعد دوباره بررسی کنید." }, 409);
 
   if (item.source_type === "telegram" && !String(item.rewritten_title || "").trim()) {
     return json({ error: "تیتر هوش مصنوعی برای پوستر آماده نیست؛ خبر بدون تیتر منتشر نمی‌شود." }, 409);
@@ -122,7 +130,10 @@ Deno.serve(async (req: Request) => {
     return value.replace(tagPattern, "");
   };
   const stripTelegramTrace = (value: string) => {
-    let cleaned = value.replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "");
+    let cleaned = value
+      .replace(/https?:\/\/[^\s<>]+|www\.[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "")
+      .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s<>]*)?/gi, "")
+      .replace(/(^|\s)@[A-Za-z0-9_]{5,}/g, "$1");
     const sourceHandle = String(item.source_name || "");
     if (sourceHandle.startsWith("@")) cleaned = stripSourceTagAndAdjacentEmoji(cleaned, sourceHandle);
     return cleaned
@@ -244,5 +255,6 @@ Deno.serve(async (req: Request) => {
     console.error("Story sent but DB update failed", item.id, updateError.message);
     return json({ ok: true, warning: "Sent to Telegram but database update failed; check before retrying", message_id: tgResult.result.message_id }, 200);
   }
+  await db.from("bot_activity").insert({event_type:"published",item_id:item.id,actor:payload.scheduled?"scheduler":(telegramAdmin?"telegram":"admin"),details:{title:item.rewritten_title||item.title,message_id:tgResult.result.message_id,channel}});
   return json({ ok: true, channel, message_id: tgResult.result.message_id, caption_mode: "single_graphic_post_fullest_possible_caption" });
 });
