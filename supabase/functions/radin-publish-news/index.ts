@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
   }
   if (payload.scheduled && !cronAdmin) return json({ error: "Scheduled publishing is internal only" }, 403);
   const { data: item, error: itemError } = await db.from("news_items")
-    .select("id,title,summary,original_summary,rewritten_title,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id,scheduled_at")
+    .select("id,title,summary,original_summary,rewritten_title,rewritten_text,category,source_url,source_name,source_type,image_url,original_image_url,graphic_image_url,pub_date,published,review_status,telegram_message_id,scheduled_at,telegram_headline_edited,telegram_caption_edited")
     .eq("id", payload.id).maybeSingle();
   if (itemError) return json({ error: "Could not load story" }, 500);
   if (!item) return json({ error: "Story not found" }, 404);
@@ -124,6 +124,16 @@ Deno.serve(async (req: Request) => {
       }
     } catch (error) {
       console.error("Editorial rewrite failed; keeping original RSS text", String(error));
+    }
+  }
+  if (item.source_type === "telegram") {
+    if (item.telegram_headline_edited && String(item.rewritten_title || "").trim()) {
+      title = String(item.rewritten_title).trim();
+      rewriteApplied = true;
+    }
+    if (item.telegram_caption_edited && String(item.rewritten_text || "").trim()) {
+      summary = String(item.rewritten_text).trim();
+      rewriteApplied = true;
     }
   }
   const stripSourceTagAndAdjacentEmoji = (value: string, handle: string) => {
