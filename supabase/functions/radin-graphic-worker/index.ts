@@ -408,7 +408,11 @@ Deno.serve(async(req)=>{
      if(previewUpdateError)throw previewUpdateError;
    }
    results.push({id:item.id,ok:true,ai_redesigned:aiStatus==="redesigned",ai_graphic:aiStatus==="ai_graphic",ai_status:aiStatus,headline_status:headlineStatus,graphic_quality_status:graphicQualityStatus,graphic_quality_score:graphicQualityScore,graphic_quality_notes:graphicQualityNotes});
-  }catch(e){results.push({id:item.id,ok:false,error:e instanceof Error?e.message:"unknown",ai_status:aiStatus,headline_status:headlineStatus});}
+  }catch(e){
+   const failureMessage=(e instanceof Error?e.message:"unknown").slice(0,500);
+   await db.from("bot_activity").insert({event_type:"graphic_failed",item_id:item.id,actor:"radin-graphic-worker",details:{reason:failureMessage,ai_status:aiStatus,headline_status:headlineStatus}});
+   results.push({id:item.id,ok:false,error:failureMessage,ai_status:aiStatus,headline_status:headlineStatus});
+ }
  }
  return new Response(JSON.stringify({ok:results.every(x=>x.ok),processed:results.length,results}),{headers:cors});
 });
