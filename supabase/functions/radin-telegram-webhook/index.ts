@@ -158,13 +158,13 @@ Deno.serve(async (req: Request) => {
       .eq("published", false).eq("review_status", "pending").is("scheduled_at", null)
       .in("source_type", ["telegram", "website"])
       .not("graphic_image_url", "is", null).not("original_image_url", "is", null)
-      .order("pub_date", { ascending: true }).limit(Number(settings.queue_limit || 10));
+      .order("pub_date", { ascending: true }).limit(200);
     if (error) return { ok: false, message: "دریافت خبرهای آماده ناموفق بود." };
     const ready = (candidates || []).filter((item: any) =>
       /^https?:\/\//i.test(String(item.graphic_image_url || "")) &&
       /^https?:\/\//i.test(String(item.original_image_url || "")) &&
       (item.source_type !== "telegram" || Boolean(String(item.rewritten_title || "").trim()))
-    );
+    ).slice(0, Number(settings.queue_limit || 10));
     if (!ready.length) return { ok: true, count: 0, message: "خبر آماده‌ای برای چیدن صف پیدا نشد." };
 
     const { data: latest } = await db.from("news_items").select("scheduled_at")
@@ -420,9 +420,19 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
   if (command === "/status" && isAdmin) {
+    const { data: settings } = await db.from("bot_settings")
+      .select("auto_publish,schedule_interval_minutes,queue_limit").eq("id", "main").maybeSingle();
+    const counts = await getBotQueueCounts();
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "✅ وب‌هوک پاسخ‌گو است.\n🔐 احراز هویت وب‌هوک فعال است.\n📰 ثبت دستی، ساخت پوستر و تأیید انتشار در دسترس مدیران است.\n🤖 انتشار خودکار خاموش است.",
+      text: [
+        "✅ وب‌هوک پاسخ‌گو است.",
+        "🔐 احراز هویت مدیر فعال است.",
+        "🤖 ارسال خودکار: " + (settings?.auto_publish ? "روشن" : "خاموش"),
+        "🕒 فاصلهٔ زمان‌بندی: هر " + String(settings?.schedule_interval_minutes || 60) + " دقیقه",
+        "📦 سقف چیدن صف: " + String(settings?.queue_limit || 10) + " پست در هر نوبت",
+        "📬 پست‌های در صف: " + counts.total + " | زمان‌بندی‌شده: " + counts.scheduled,
+      ].join("\n"),
     });
     return json({ ok: true });
   }
