@@ -72,6 +72,7 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true });
       }
       await answerCallback(String(callback.id), "خبر رد شد.");
+      await db.from("bot_activity").insert({event_type:"rejected",item_id:itemId,actor:"telegram",details:{title:changed.id}});
       await telegram("editMessageReplyMarkup", {
         chat_id: callback.message?.chat?.id, message_id: callback.message?.message_id, reply_markup: { inline_keyboard: [] },
       });
@@ -112,6 +113,7 @@ Deno.serve(async (req: Request) => {
   const userId = String(message.from?.id ?? "");
   const isAdmin = adminIds.includes(userId);
   const messageText = String(message.text ?? message.caption ?? "").trim();
+  const videoMedia = message.video || null;
   const command = messageText.split(/\s+/, 1)[0].split("@", 1)[0];
 
   if ((command === "/testpublish") && isAdmin) {
@@ -126,7 +128,7 @@ Deno.serve(async (req: Request) => {
   if (command === "/start") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n/help — راهنما",
+      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس یا ویدیو بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n/help — راهنما",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -134,7 +136,7 @@ Deno.serve(async (req: Request) => {
   if (command === "/help") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس فوروارد کنید؛ برای فوروارد عکس، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nانتشار خودکار فعال نیست. لینک منبع در کپشن کانال درج نمی‌شود.",
+      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nانتشار خودکار فعال نیست. لینک منبع در کپشن کانال درج نمی‌شود.",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -152,7 +154,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!isAdmin) return json({ ok: true });
-  if (!messageText && !message.photo?.length) {
+  if (!messageText && !message.photo?.length && !videoMedia) {
     await telegram("sendMessage", { chat_id: chatId, text: "لینک خبر یا خبر فورواردشده را همراه لینک بفرستید. برای راهنما /help را بزنید." });
     return json({ ok: true });
   }
@@ -172,8 +174,8 @@ Deno.serve(async (req: Request) => {
       sourceUrl = null;
     }
   }
-  const manualTelegramPhoto = !sourceUrl && Boolean(message.photo?.length);
-  if (!sourceUrl && !manualTelegramPhoto) {
+  const manualTelegramMedia = !sourceUrl && Boolean(message.photo?.length || videoMedia);
+  if (!sourceUrl && !manualTelegramMedia) {
     await telegram("sendMessage", {
       chat_id: chatId,
       text: "لینک پیدا نشد. لینک خبر را بفرستید، یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس بدون لینک هم پذیرفته می‌شود.",
@@ -272,10 +274,11 @@ Deno.serve(async (req: Request) => {
   const summary = (forwardedFromTelegram ? stripForwardTrace(summaryCandidate) : summaryCandidate).slice(0, 5000);
   const sourceName = forwardedFromTelegram ? forwardSource : (sourceUrl?.hostname.replace(/^www\./i, "") || forwardSource);
   if (!title) {
-    await telegram("sendMessage", { chat_id: chatId, text: "عکس دریافت شد، اما عنوان خبر در کپشن نیست. لطفاً همان عکس را با عنوان خبر در کپشن دوباره فوروارد کنید." });
+    await telegram("sendMessage", { chat_id: chatId, text: "رسانه دریافت شد، اما عنوان خبر در کپشن نیست. لطفاً همان عکس یا ویدیو را با عنوان خبر در کپشن دوباره فوروارد کنید." });
     return json({ ok: true });
   }
   let imageUrl = metaImage;
+  const videoFileId = String(videoMedia?.file_id || "").trim();
 
   if (!imageUrl && message.photo?.length) {
     try {
@@ -295,10 +298,41 @@ Deno.serve(async (req: Request) => {
       console.error("Telegram photo handling failed", String(error));
     }
   }
+  if (videoMedia?.file_id) {
+    const coverCandidates = [...(videoMedia.cover || []), videoMedia.thumbnail, videoMedia.thumb].filter((x: any) => x?.file_id);
+    coverCandidates.sort((a: any, b: any) => Number(a.width || 0) * Number(a.height || 0) - Number(b.width || 0) * Number(b.height || 0));
+    const videoCover = coverCandidates[coverCandidates.length - 1];
+    if (videoCover?.file_id) {
+      try {
+        const fileInfo = await telegram("getFile", { file_id: videoCover.file_id });
+        const filePath = String(fileInfo.result?.result?.file_path || "");
+        if (!fileInfo.response.ok || !filePath || filePath.includes("..")) throw new Error("Telegram video cover unavailable");
+        const coverResponse = await fetch("https://api.telegram.org/file/bot" + botToken + "/" + filePath, { signal: AbortSignal.timeout(15000) });
+        if (!coverResponse.ok) throw new Error("Could not download Telegram video cover");
+        const bytes = new Uint8Array(await coverResponse.arrayBuffer());
+        if (bytes.length < 100 || bytes.length > 10 * 1024 * 1024) throw new Error("Video cover size must be under 10 MB");
+        const headerType = (coverResponse.headers.get("content-type") || "").split(";")[0].toLowerCase();
+        const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+        const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+        const isWebp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+          bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+        const isGif = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38;
+        const contentType = isJpeg ? "image/jpeg" : isPng ? "image/png" : isWebp ? "image/webp" : isGif ? "image/gif" : headerType;
+        if (!contentType.startsWith("image/")) throw new Error("Telegram video cover is not a supported image (content type: " + (headerType || "unknown") + ")");
+        const extension = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : contentType.includes("gif") ? "gif" : "jpg";
+        const storagePath = "news-submissions/" + crypto.randomUUID() + "." + extension;
+        const { error } = await db.storage.from("radin-graphics").upload(storagePath, bytes, { contentType, upsert: false });
+        if (error) throw error;
+        imageUrl = db.storage.from("radin-graphics").getPublicUrl(storagePath).data.publicUrl;
+      } catch (error) {
+        console.error("Telegram video cover handling failed", String(error));
+      }
+    }
+  }
   if (!imageUrl) {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "برای اعمال قالب گرافیکی، عکس خبر لازم است. لینک صفحه‌ای بفرستید که تصویر شاخص عمومی داشته باشد، یا همان خبر را همراه عکس فوروارد کنید.",
+      text: "برای ساخت پوستر، عکس یا کاور ویدیو لازم است. اگر ویدیو کاور ندارد، آن را همراه یک تصویر خبر یا با کاور دوباره فوروارد کنید.",
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -317,6 +351,7 @@ Deno.serve(async (req: Request) => {
       original_title: title,
       original_summary: summary || null,
       image_url: imageUrl,
+      video_file_id: videoFileId || null,
       source_url: canonicalUrl,
       source_name: sourceName,
       source_type: forwardedFromTelegram ? "telegram" : (sourceUrl ? "website" : "telegram"),
@@ -332,7 +367,7 @@ Deno.serve(async (req: Request) => {
     itemId = inserted.id;
   } else {
     const { error } = await db.from("news_items").update({
-      title, summary: summary || null, image_url: imageUrl, source_name: sourceName,
+      title, summary: summary || null, image_url: imageUrl, video_file_id: videoFileId || null, source_name: sourceName,
       original_title: title, original_summary: summary || null, source_type: forwardedFromTelegram ? "telegram" : (sourceUrl ? "website" : "telegram"),
       pub_date: publishedAt, review_status: "pending", graphic_image_url: null, original_image_url: null, updated_at: new Date().toISOString(),
     }).eq("id", itemId).eq("published", false);
@@ -342,6 +377,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  await db.from("bot_activity").insert({event_type:"received",item_id:itemId,actor:"telegram",details:{title,source:sourceName}});
   const worker = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
     method: "POST",
     headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
@@ -372,6 +408,7 @@ Deno.serve(async (req: Request) => {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر هنوز آماده نیست؛ خبر منتشر نشده است." });
     return json({ ok: true });
   }
+  await db.from("bot_activity").insert({event_type:"graphic_ready",item_id:itemId,actor:"telegram",details:{title}});
   const workerItemResult = workerResult.results.find((row: any) => row.id === itemId);
   const aiStatus = String(workerItemResult?.ai_status || "not_applicable");
   const designNote = aiStatus === "no_credits"
@@ -404,6 +441,7 @@ Deno.serve(async (req: Request) => {
     await telegram("sendMessage", { chat_id: chatId, text: "پوستر آماده شد، اما ارسال پیش‌نمایش در گفتگو ناموفق بود. از پنل مدیریت خبر را بررسی کنید." });
   } else {
     console.log("Manual story preview delivered", itemId, preview.result.result?.message_id || "unknown");
+    await db.from("bot_activity").insert({event_type:"preview_sent",item_id:itemId,actor:"telegram",details:{preview_message_id:preview.result.result?.message_id||null,title}});
   }
   if (designNote) {
     await telegram("sendMessage", { chat_id: chatId, text: designNote, disable_web_page_preview: true });
