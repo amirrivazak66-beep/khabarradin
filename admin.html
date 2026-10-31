@@ -662,7 +662,7 @@ a{text-decoration:none; color:inherit;}
     if(!queueEl || !sentEl || !activityEl)return;
     queueEl.textContent='در حال بارگذاری صف...'; sentEl.textContent='در حال بارگذاری...'; activityEl.textContent='در حال بارگذاری...';
     const {data:items,error}=await sb.from('news_items')
-      .select('id,title,rewritten_title,summary,rewritten_text,original_summary,image_url,pub_date,published,review_status,source_type,scheduled_at,telegram_message_id,processed_at')
+      .select('id,title,rewritten_title,summary,rewritten_text,original_summary,image_url,graphic_image_url,original_image_url,pub_date,published,review_status,source_type,scheduled_at,telegram_message_id,processed_at')
       .eq('source_type','telegram').order('pub_date',{ascending:false}).limit(100);
     if(error){queueEl.textContent='خطا در بارگذاری صف: '+error.message;return;}
     const queued=(items||[]).filter(x=>!x.published && x.review_status!=='rejected').slice(0,40);
@@ -670,13 +670,15 @@ a{text-decoration:none; color:inherit;}
     queueEl.innerHTML=queued.length?queued.map(item=>{
       const body=item.rewritten_text||item.original_summary||item.summary||'';
       const headline=item.rewritten_title||item.title||'';
+      const readyForSchedule=Boolean(item.graphic_image_url&&item.original_image_url&&(item.source_type!=='telegram'||item.rewritten_title));
       const when=item.scheduled_at?'<div class="sub">زمان فعلی: '+botHtml(botFaDate(item.scheduled_at))+'</div>':'';
       return '<article class="recent-news-item" style="display:block;margin:12px 0;padding:14px;border:1px solid #e3e7ee;border-radius:12px">'
         +'<div style="font-weight:800;margin-bottom:8px">'+botHtml(headline)+'</div>'
         +'<label>متن کپشن خبر</label><textarea data-caption="'+botHtml(item.id)+'" rows="4" style="width:100%;margin:6px 0 10px;border:1px solid #d9e0ea;border-radius:8px;padding:10px;font:inherit">'+botHtml(body)+'</textarea>'
         +'<div class="field"><label>زمان انتشار (ساعت محلی دستگاه)</label><input type="datetime-local" data-time="'+botHtml(item.id)+'" value="'+botHtml(botLocalDateValue(item.scheduled_at))+'" style="padding:9px;border:1px solid #d9e0ea;border-radius:8px"></div>'
-        +when+'<div class="row-actions"><button class="btn-secondary" data-save-caption="'+botHtml(item.id)+'">ذخیره کپشن</button><button class="btn-primary" data-schedule="'+botHtml(item.id)+'">ذخیره زمان انتشار</button>'
-        +(item.scheduled_at?'<button class="btn-secondary" data-cancel-schedule="'+botHtml(item.id)+'">لغو زمان‌بندی</button>':'')+'</div></article>';
+        +when+'<div class="row-actions"><button class="btn-secondary" data-save-caption="'+botHtml(item.id)+'">ذخیره کپشن</button><button class="btn-primary" data-schedule="'+botHtml(item.id)+'" '+(readyForSchedule?'':'disabled')+'>ذخیره زمان انتشار</button>'
+        +(item.scheduled_at?'<button class="btn-secondary" data-cancel-schedule="'+botHtml(item.id)+'">لغو زمان‌بندی</button>':'')
+        +(!readyForSchedule?'<div class="sub" style="color:#b45309;margin-top:8px">تا آماده‌شدن پوستر و تیتر، زمان‌بندی فعال نمی‌شود.</div>':'')+'</div></article>';
     }).join(''):'<p class="sub">خبر فورواردشده‌ای در صف نیست.</p>';
     sentEl.innerHTML=sent.length?sent.map(item=>{
       const href=item.telegram_message_id?'https://t.me/radinnews/'+encodeURIComponent(item.telegram_message_id):'https://t.me/radinnews';
@@ -685,7 +687,7 @@ a{text-decoration:none; color:inherit;}
     const {data:events,error:activityError}=await sb.from('bot_activity').select('event_type,item_id,actor,details,created_at').order('created_at',{ascending:false}).limit(50);
     if(activityError){activityEl.textContent='گزارش فعالیت در دسترس نیست: '+activityError.message;}
     else {
-      const labels={caption_updated:'کپشن ویرایش شد',scheduled:'انتشار زمان‌بندی شد',schedule_cancelled:'زمان‌بندی لغو شد',published:'خبر منتشر شد',rejected:'خبر رد شد',schedule_publish_failed:'انتشار زمان‌بندی‌شده ناموفق بود',received:'خبر از ربات دریافت شد'};
+      const labels={caption_updated:'کپشن ویرایش شد',scheduled:'انتشار زمان‌بندی شد',schedule_cancelled:'زمان‌بندی لغو شد',published:'خبر منتشر شد',rejected:'خبر رد شد',schedule_publish_failed:'انتشار زمان‌بندی‌شده ناموفق بود',received:'خبر از ربات دریافت شد',graphic_ready:'پوستر آماده شد',preview_sent:'پیش‌نمایش برای مدیر ارسال شد'};
       activityEl.innerHTML=(events||[]).length?(events||[]).map(e=>'<div class="recent-news-item" style="margin:7px 0"><span class="cat-tag">'+botHtml(labels[e.event_type]||e.event_type)+'</span><span class="title">'+botHtml(e.details?.title||e.item_id||'عملیات ربات')+'</span><span class="time">'+botHtml(botFaDate(e.created_at))+'</span><span class="sub">'+botHtml(e.actor||'ربات')+'</span></div>').join(''):'<p class="sub">هنوز فعالیتی ثبت نشده است.</p>';
     }
     queueEl.querySelectorAll('[data-save-caption]').forEach(button=>button.addEventListener('click',async()=>{
@@ -699,7 +701,8 @@ a{text-decoration:none; color:inherit;}
     }));
     queueEl.querySelectorAll('[data-schedule]').forEach(button=>button.addEventListener('click',async()=>{
       const id=button.dataset.schedule, input=queueEl.querySelector('[data-time="'+id+'"]'), value=input.value;
-      if(!document.getElementById('botAutoPublish').checked){alert('ابتدا «انتشار خودکار خبرهای زمان‌بندی‌شده» را در تنظیمات ربات روشن و ذخیره کنید.');return;}
+      const {data:settings, error:settingsError}=await sb.from('bot_settings').select('auto_publish').eq('id','main').maybeSingle();
+      if(settingsError || settings?.auto_publish!==true){alert('ابتدا گزینهٔ انتشار زمان‌بندی‌شده را روشن و در تنظیمات ربات ذخیره کنید.');return;}
       if(!value){alert('زمان انتشار را انتخاب کنید.');return;}
       const when=new Date(value);
       if(!Number.isFinite(when.getTime())||when.getTime()<=Date.now()){alert('زمان انتشار باید در آینده باشد.');return;}
