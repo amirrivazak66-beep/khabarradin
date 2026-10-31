@@ -869,6 +869,60 @@ Deno.serve(async (req: Request) => {
   const title = (forwardedFromTelegram ? stripForwardTrace(titleCandidate) : titleCandidate).slice(0, 500);
   const summary = (forwardedFromTelegram ? stripForwardTrace(summaryCandidate) : summaryCandidate).slice(0, 5000);
   const sourceName = forwardedFromTelegram ? forwardSource : (sourceUrl?.hostname.replace(/^www\./i, "") || forwardSource);
+
+  const duplicateTokens = (value: string) => {
+    const stop = new Set(["و","در","به","از","که","با","برای","این","آن","یک","را","بر","تا","اما","نیز","شد","شود","کرد","کرده","می","خواهد","است","بود","هست","های","ها"]);
+    return new Set(value.normalize("NFKC").toLowerCase()
+      .replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/[ۀة]/g, "ه")
+      .replace(/https?:\/\/\S+|@\w+/g, " ")
+      .replace(/[^\p{L}\p{N}]+/gu, " ").split(/\s+/)
+      .filter((token) => token.length > 1 && !stop.has(token)));
+  };
+  const tokenSimilarity = (left: Set<string>, right: Set<string>) => {
+    if (!left.size || !right.size) return 0;
+    let common = 0;
+    for (const token of left) if (right.has(token)) common++;
+    return common / (left.size + right.size - common);
+  };
+  const duplicateSince = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const { data: recentStories, error: duplicateLookupError } = await db.from("news_items")
+    .select("id,title,summary,original_summary,rewritten_title,source_url,published,scheduled_at,created_at")
+    .gte("created_at", duplicateSince).order("created_at", { ascending: false }).limit(300);
+  if (duplicateLookupError) {
+    console.error("Duplicate lookup failed", duplicateLookupError.message);
+  } else {
+    const incomingTitleTokens = duplicateTokens(title);
+    const incomingBodyTokens = duplicateTokens((title + " " + summary).slice(0, 1400));
+    if (incomingTitleTokens.size >= 4) {
+      const duplicate = (recentStories || []).filter((candidate: any) =>
+        candidate.id !== existing?.id && candidate.source_url !== canonicalUrl
+      ).map((candidate: any) => {
+        const candidateTitleTokens = duplicateTokens(String(candidate.rewritten_title || candidate.title || ""));
+        const candidateBodyTokens = duplicateTokens((String(candidate.title || "") + " " + String(candidate.original_summary || candidate.summary || "")).slice(0, 1400));
+        const titleScore = tokenSimilarity(incomingTitleTokens, candidateTitleTokens);
+        const bodyScore = tokenSimilarity(incomingBodyTokens, candidateBodyTokens);
+        return { candidate, titleScore, bodyScore, score: Math.max(titleScore, bodyScore) };
+      }).find((match: any) =>
+        (match.titleScore >= 0.90 && match.bodyScore >= 0.58) ||
+        (match.titleScore >= 0.96) ||
+        (match.titleScore >= 0.82 && match.bodyScore >= 0.82)
+      );
+      if (duplicate) {
+        const matched: any = duplicate.candidate;
+        const state = matched.published ? "قبلاً منتشر شده" : matched.scheduled_at ? "در صف زمان‌بندی است" : "در صف بررسی است";
+        await db.from("bot_activity").insert({
+          event_type: "duplicate_detected", item_id: matched.id, actor: "telegram:" + userId,
+          details: { incoming_title: title.slice(0, 240), matched_title: matched.rewritten_title || matched.title, similarity: Number(duplicate.score.toFixed(3)), window_hours: 48 },
+        });
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: "⚠️ خبر مشابهی در ۴۸ ساعت اخیر پیدا شد و برای جلوگیری از تکرار ثبت نشد.\n\nخبر موجود: " + String(matched.rewritten_title || matched.title || "").slice(0, 250) + "\nوضعیت: " + state + "\n\nاگر این خبر به‌روزرسانی مهمی دارد، آن را با تیتر یا متن کامل‌تر دوباره بفرستید.",
+          disable_web_page_preview: true,
+        });
+        return json({ ok: true, duplicate: true, matched_item_id: matched.id });
+      }
+    }
+  }
   if (!title) {
     await telegram("sendMessage", { chat_id: chatId, text: "رسانه دریافت شد، اما عنوان خبر در کپشن نیست. لطفاً همان عکس یا ویدیو را با عنوان خبر در کپشن دوباره فوروارد کنید." });
     return json({ ok: true });
