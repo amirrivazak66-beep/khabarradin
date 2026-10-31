@@ -50,15 +50,18 @@ Deno.serve(async (req: Request) => {
   const getBotQueueCounts = async () => {
     const base = () => db.from("news_items").select("id", { count: "exact", head: true })
       .eq("published", false).in("source_type", ["telegram", "website"]).neq("review_status", "rejected");
-    const [allResult, scheduledResult] = await Promise.all([
+    const [allResult, scheduledResult, nextResult] = await Promise.all([
       base(),
       base().not("scheduled_at", "is", null),
+      db.from("news_items").select("scheduled_at").eq("published", false).not("scheduled_at", "is", null)
+        .order("scheduled_at", { ascending: true }).limit(1).maybeSingle(),
     ]);
     return {
       total: allResult.count || 0,
       scheduled: scheduledResult.count || 0,
       waiting: Math.max(0, (allResult.count || 0) - (scheduledResult.count || 0)),
-      error: allResult.error || scheduledResult.error,
+      nextAt: nextResult.data?.scheduled_at || null,
+      error: allResult.error || scheduledResult.error || nextResult.error,
     };
   };
 
@@ -73,11 +76,13 @@ Deno.serve(async (req: Request) => {
       return;
     }
     const auto = settings.auto_publish === true;
+    const nextTime = counts.nextAt ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tehran" }).format(new Date(counts.nextAt)) : "ندارد";
     const panelText = [
       "⚙️ تنظیمات ربات خبر رادین",
       "",
       "📣 کانال مقصد: " + String(settings.channel_username || "@radinnews"),
       "📬 پست‌های در صف: " + counts.total + " | زمان‌بندی‌شده: " + counts.scheduled + " | بدون زمان: " + counts.waiting,
+      "⏭ زمان ارسال بعدی: " + nextTime,
       "🕒 فاصلهٔ ارسال: هر " + settings.schedule_interval_minutes + " دقیقه",
       "📦 سقف چیدن صف در هر نوبت: " + settings.queue_limit + " پست",
       "🤖 ارسال خودکار: " + (auto ? "روشن" : "خاموش"),
@@ -88,6 +93,7 @@ Deno.serve(async (req: Request) => {
       [{ text: auto ? "⏸ خاموش‌کردن ارسال خودکار" : "▶️ روشن‌کردن ارسال خودکار", callback_data: "botsettings:auto" }],
       [{ text: "🕒 تنظیم فاصلهٔ زمان‌بندی", callback_data: "botsettings:schedule" }],
       [{ text: "📦 تنظیم تعداد صف", callback_data: "botsettings:queue" }],
+      [{ text: "📋 مشاهده و مدیریت صف زمان‌بندی", callback_data: "botqueue:refresh" }],
       [{ text: "📨 چیدن صف خبرهای آماده", callback_data: "botsettings:fill_queue" }],
       [{ text: "📣 راهنمای تغییر کانال", callback_data: "botsettings:channel" }],
       [{ text: "🔄 تازه‌سازی", callback_data: "botsettings:refresh" }],
@@ -147,6 +153,39 @@ Deno.serve(async (req: Request) => {
     await telegram("editMessageText", { chat_id: chatId, message_id: messageId, text: panelText, reply_markup: { inline_keyboard: keyboard } });
   };
 
+  const showScheduledQueue = async (chatId: number | string, messageId?: number) => {
+    const { data: items, error } = await db.from("news_items")
+      .select("id,title,rewritten_title,scheduled_at,review_status")
+      .eq("published", false).not("scheduled_at", "is", null)
+      .order("scheduled_at", { ascending: true }).limit(8);
+    if (error) {
+      await telegram("sendMessage", { chat_id: chatId, text: "خواندن صف زمان‌بندی ناموفق بود." });
+      return;
+    }
+    const list = items || [];
+    const lines = ["📋 صف ارسال زمان‌بندی‌شده", ""];
+    const keyboard: any[] = [];
+    list.forEach((item: any, index: number) => {
+      const title = String(item.rewritten_title || item.title || "خبر بدون عنوان").replace(/\s+/g, " ").slice(0, 95);
+      const when = new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tehran" }).format(new Date(item.scheduled_at));
+      lines.push((index + 1) + ") " + when + " — " + title);
+      const actions: any[] = [];
+      if (index > 0) actions.push({ text: "⬆️", callback_data: "botqueue:up:" + item.id });
+      if (index < list.length - 1) actions.push({ text: "⬇️", callback_data: "botqueue:down:" + item.id });
+      actions.push({ text: "لغو", callback_data: "botqueue:cancel:" + item.id });
+      keyboard.push(actions);
+    });
+    if (!list.length) lines.push("صف زمان‌بندی‌شده خالی است.");
+    lines.push("", "جابجایی فقط برای پست‌هایی انجام می‌شود که حداقل دو دقیقه تا زمان انتشار فاصله دارند.");
+    keyboard.push([{ text: "🔄 تازه‌سازی", callback_data: "botqueue:refresh" }, { text: "↩️ تنظیمات ربات", callback_data: "botsettings:refresh" }]);
+    const params: any = { chat_id: chatId, text: lines.join("\n").slice(0, 3900), reply_markup: { inline_keyboard: keyboard }, disable_web_page_preview: true };
+    if (messageId) {
+      await telegram("editMessageText", { ...params, message_id: messageId });
+    } else {
+      await telegram("sendMessage", params);
+    }
+  };
+
   const fillBotQueue = async (userId: string) => {
     const { data: settings, error: settingsError } = await db.from("bot_settings")
       .select("auto_publish,schedule_interval_minutes,queue_limit").eq("id", "main").maybeSingle();
@@ -204,6 +243,73 @@ Deno.serve(async (req: Request) => {
     const data = String(callback.data ?? "");
     if (!adminIds.includes(userId)) {
       await answerCallback(String(callback.id), "این عملیات فقط برای مدیر ربات در دسترس است.");
+      return json({ ok: true });
+    }
+    if (data.startsWith("botqueue:")) {
+      const chat = callback.message?.chat?.id;
+      const messageId = callback.message?.message_id;
+      const parts = data.split(":");
+      const action = parts[1];
+      if (action === "refresh") {
+        await answerCallback(String(callback.id));
+        await showScheduledQueue(chat, messageId);
+        return json({ ok: true });
+      }
+      const itemId = parts[2] || "";
+      const { data: queue, error } = await db.from("news_items")
+        .select("id,title,rewritten_title,scheduled_at")
+        .eq("published", false).not("scheduled_at", "is", null)
+        .order("scheduled_at", { ascending: true }).limit(200);
+      if (error) {
+        await answerCallback(String(callback.id), "خواندن صف ناموفق بود.");
+        return json({ ok: true });
+      }
+      const index = (queue || []).findIndex((item: any) => item.id === itemId);
+      if (index < 0) {
+        await answerCallback(String(callback.id), "این خبر دیگر در صف نیست.");
+        await showScheduledQueue(chat, messageId);
+        return json({ ok: true });
+      }
+      if (action === "cancel") {
+        const { data: changed, error: cancelError } = await db.from("news_items")
+          .update({ scheduled_at: null, review_status: "pending", updated_at: new Date().toISOString() })
+          .eq("id", itemId).eq("published", false).not("scheduled_at", "is", null).select("id").maybeSingle();
+        if (cancelError || !changed) {
+          await answerCallback(String(callback.id), "لغو پست انجام نشد.");
+          return json({ ok: true });
+        }
+        await db.from("bot_activity").insert({ event_type: "schedule_cancelled", item_id: itemId, actor: "telegram:" + userId, details: { title: queue[index].rewritten_title || queue[index].title } });
+        await answerCallback(String(callback.id), "پست از صف زمان‌بندی خارج شد.");
+        await showScheduledQueue(chat, messageId);
+        return json({ ok: true });
+      }
+      const direction = action === "up" ? -1 : action === "down" ? 1 : 0;
+      const neighborIndex = index + direction;
+      if (!direction || neighborIndex < 0 || neighborIndex >= queue.length) {
+        await answerCallback(String(callback.id), "این جابه‌جایی ممکن نیست.");
+        return json({ ok: true });
+      }
+      const current = queue[index], neighbor = queue[neighborIndex];
+      const safeAfter = Date.now() + 2 * 60 * 1000;
+      if (Date.parse(current.scheduled_at) <= safeAfter || Date.parse(neighbor.scheduled_at) <= safeAfter) {
+        await answerCallback(String(callback.id), "این پست نزدیک زمان انتشار است و دیگر جابه‌جا نمی‌شود.");
+        return json({ ok: true });
+      }
+      const currentTime = current.scheduled_at, neighborTime = neighbor.scheduled_at;
+      const { error: moveError } = await db.from("news_items").update({ scheduled_at: neighborTime, updated_at: new Date().toISOString() }).eq("id", current.id).eq("published", false);
+      if (moveError) {
+        await answerCallback(String(callback.id), "جابجایی انجام نشد.");
+        return json({ ok: true });
+      }
+      const { error: swapError } = await db.from("news_items").update({ scheduled_at: currentTime, updated_at: new Date().toISOString() }).eq("id", neighbor.id).eq("published", false);
+      if (swapError) {
+        await db.from("news_items").update({ scheduled_at: currentTime, updated_at: new Date().toISOString() }).eq("id", current.id).eq("published", false);
+        await answerCallback(String(callback.id), "جابجایی کامل نشد؛ صف به حالت قبل برگشت.");
+        return json({ ok: true });
+      }
+      await db.from("bot_activity").insert({ event_type: "schedule_reordered", item_id: itemId, actor: "telegram:" + userId, details: { direction: action, swapped_with: neighbor.id } });
+      await answerCallback(String(callback.id), action === "up" ? "پست یک جایگاه بالاتر رفت." : "پست یک جایگاه پایین‌تر رفت.");
+      await showScheduledQueue(chat, messageId);
       return json({ ok: true });
     }
     if (data.startsWith("botsettings:")) {
