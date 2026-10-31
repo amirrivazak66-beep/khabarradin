@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true });
       }
       await answerCallback(String(callback.id), "خبر رد شد.");
-      await db.from("bot_activity").insert({event_type:"rejected",item_id:itemId,actor:"telegram",details:{title:changed.id}});
+      await db.from("bot_activity").insert({event_type:"rejected",item_id:itemId,actor:"telegram",details:{title:"رد خبر از طریق تلگرام"}});
       await telegram("editMessageReplyMarkup", {
         chat_id: callback.message?.chat?.id, message_id: callback.message?.message_id, reply_markup: { inline_keyboard: [] },
       });
