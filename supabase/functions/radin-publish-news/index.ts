@@ -25,6 +25,20 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Server configuration missing" }, 500);
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const recordAiUsage = async (itemId: string, task: string, status: string, usage?: any) => {
+    const inputTokens = Number.isFinite(Number(usage?.prompt_tokens ?? usage?.input_tokens)) ? Number(usage?.prompt_tokens ?? usage?.input_tokens) : null;
+    const outputTokens = Number.isFinite(Number(usage?.completion_tokens ?? usage?.output_tokens)) ? Number(usage?.completion_tokens ?? usage?.output_tokens) : null;
+    const inputRate = 0.15, outputRate = 0.60;
+    const cost = inputTokens !== null && outputTokens !== null ? (inputTokens * inputRate + outputTokens * outputRate) / 1000000 : null;
+    const { error } = await db.from("ai_usage_events").insert({
+      item_id: itemId, provider: "openai", model: "gpt-4o-mini", task, status,
+      input_tokens: inputTokens, output_tokens: outputTokens, estimated_cost_usd: cost,
+      cost_known: cost !== null, rate_snapshot: { rate_date: "2026-10-31", input_usd_per_million: inputRate, output_usd_per_million: outputRate },
+      raw_usage: usage || null,
+    });
+    if (error) console.error("AI usage event could not be saved", error.message);
+  };
+
   let cronAdmin = false;
   if (cronCandidate) {
     const { data: authorized } = await db.rpc("verify_radin_cron_secret", { candidate: cronCandidate });
@@ -110,8 +124,9 @@ Deno.serve(async (req: Request) => {
           ]
         })
       });
+      const rewriteData: any = await rewriteResponse.json().catch(() => ({}));
+      await recordAiUsage(item.id, "editorial_rewrite", rewriteResponse.ok ? "succeeded" : "failed", rewriteData?.usage);
       if (rewriteResponse.ok) {
-        const rewriteData = await rewriteResponse.json();
         const content = rewriteData?.choices?.[0]?.message?.content;
         if (typeof content === "string") {
           const rewritten = JSON.parse(content);
@@ -123,6 +138,7 @@ Deno.serve(async (req: Request) => {
         console.error("Editorial rewrite failed; keeping original RSS text", rewriteResponse.status);
       }
     } catch (error) {
+      await recordAiUsage(item.id, "editorial_rewrite", "network_error");
       console.error("Editorial rewrite failed; keeping original RSS text", String(error));
     }
   }
