@@ -345,7 +345,7 @@ Deno.serve(async (req: Request) => {
       await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:callback.message?.message_id,reply_markup:{inline_keyboard:[]}});
       const {error:optionError}=await db.from("news_items").update({telegram_translation_language:language==="none"?null:language,telegram_generate_graphic:design==="1"}).eq("id",itemId).eq("published",false);
       if(optionError){await telegram("sendMessage",{chat_id:chatId,text:"ذخیره انتخاب‌ها ناموفق بود؛ دوباره خبر را فوروارد کنید."});return json({ok:true});}
-      const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId}),signal:AbortSignal.timeout(140000)});
+      const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
       const result:any=await worker.json().catch(()=>({}));
       if(!worker.ok||!result.results?.some((x:any)=>x.id===itemId&&x.ok))await telegram("sendMessage",{chat_id:chatId,text:"خبر در صف آماده‌سازی باقی ماند و پردازش خودکار ادامه پیدا می‌کند."});
       return json({ok:true});
