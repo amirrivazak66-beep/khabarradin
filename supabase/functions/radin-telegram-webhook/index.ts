@@ -42,6 +42,9 @@ Deno.serve(async (req: Request) => {
     });
     let result: any = {};
     try { result = await response.json(); } catch {}
+    if (!response.ok || result?.ok === false) {
+      console.error("Telegram API call failed", method, response.status, String(result?.description || "unknown").slice(0, 220));
+    }
     return { response, result };
   };
   const mainMenuReplyMarkup = (isAdmin: boolean, trialActive = false) => {
@@ -85,10 +88,19 @@ Deno.serve(async (req: Request) => {
     dateStyle: "full", timeStyle: "short", timeZone: "Asia/Tehran",
   }).format(new Date(expiresAt));
   const sendTrialConsent = async (chatId: number | string, source: "site" | "telegram") => {
+    const consentText = "برای فعال‌سازی یک روز استفادهٔ آزمایشی، نام نمایشی تلگرام و شماره‌ای را که با دکمهٔ تلگرام به اشتراک می‌گذارید ثبت می‌کنیم. شمارهٔ خام ذخیره نمی‌شود؛ فقط اثر انگشت رمزنگاری‌شدهٔ آن برای جلوگیری از فعال‌سازی تکراری نگه داشته می‌شود. دورهٔ ۲۴ساعته پس از تأیید شماره آغاز می‌شود. با ادامه، با این ثبت اطلاعات موافقت می‌کنید.";
+    const sent = await telegram("sendMessage", {
+      chat_id: chatId,
+      text: consentText,
+      reply_markup: { inline_keyboard: [[{ text: "✅ موافقم و ادامه می‌دهم", callback_data: "register:consent:" + source }]] },
+      disable_web_page_preview: true,
+    });
+    if (sent.response.ok && sent.result?.ok) return;
+    const fallbackConsent = source === "site" ? "✅ موافقم و ادامه می‌دهم (سایت)" : "✅ موافقم و ادامه می‌دهم";
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "برای فعال‌سازی یک روز استفادهٔ آزمایشی، نام نمایشی تلگرام و شماره‌ای را که با دکمهٔ تلگرام به اشتراک می‌گذارید ثبت می‌کنیم. شمارهٔ خام ذخیره نمی‌شود؛ فقط اثر انگشت رمزنگاری‌شدهٔ آن برای جلوگیری از فعال‌سازی تکراری نگه داشته می‌شود. دورهٔ ۲۴ساعته پس از تأیید شماره آغاز می‌شود. با ادامه، با این ثبت اطلاعات موافقت می‌کنید.",
-      reply_markup: { inline_keyboard: [[{ text: "✅ موافقم و ادامه می‌دهم", callback_data: "register:consent:" + source }]] },
+      text: consentText + "\n\nاگر دکمهٔ تأیید بالای صفحه کار نکرد، دکمهٔ پایین را بزنید.",
+      reply_markup: { keyboard: [[{ text: fallbackConsent }]], resize_keyboard: true, one_time_keyboard: true },
       disable_web_page_preview: true,
     });
   };
@@ -937,6 +949,41 @@ Deno.serve(async (req: Request) => {
   const messageText = String(message.text ?? message.caption ?? "").trim();
   const videoMedia = message.video || null;
   const command = messageText.split(/\s+/, 1)[0].split("@", 1)[0];
+
+  const replyConsentSource = messageText === "✅ موافقم و ادامه می‌دهم (سایت)" ? "site"
+    : messageText === "✅ موافقم و ادامه می‌دهم" ? "telegram" : null;
+  if (replyConsentSource) {
+    if (isAdmin) {
+      await telegram("sendMessage", { chat_id: chatId, text: "حساب مدیر از قبل دسترسی کامل دارد.", reply_markup: { remove_keyboard: true } });
+      return json({ ok: true });
+    }
+    if (message.chat.type !== "private" || String(chatId) !== userId) {
+      await telegram("sendMessage", { chat_id: chatId, text: "ثبت‌نام فقط در گفت‌وگوی خصوصی با ربات انجام می‌شود." });
+      return json({ ok: true });
+    }
+    if (trialAccount?.phone_verified_at) {
+      await telegram("sendMessage", { chat_id: chatId, text: "این حساب قبلاً دورهٔ آزمایشی خود را فعال کرده و دورهٔ دوم دریافت نمی‌کند." });
+      return json({ ok: true });
+    }
+    const registration = {
+      telegram_user_id: Number(userId), chat_id: Number(chatId),
+      first_name: String(message.from?.first_name || "").slice(0, 128) || null,
+      last_name: String(message.from?.last_name || "").slice(0, 128) || null,
+      username: String(message.from?.username || "").slice(0, 64) || null,
+      registration_source: replyConsentSource,
+      consent_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    const consentSave = trialAccount
+      ? await db.from("telegram_trial_accounts").update(registration).eq("telegram_user_id", Number(userId)).is("phone_verified_at", null)
+      : await db.from("telegram_trial_accounts").insert(registration);
+    if (consentSave.error) {
+      console.error("Telegram reply-keyboard consent could not be stored", consentSave.error.message);
+      await telegram("sendMessage", { chat_id: chatId, text: "ثبت موافقت انجام نشد؛ دوباره /start را بزنید." });
+      return json({ ok: true });
+    }
+    await sendTrialContactRequest(chatId);
+    return json({ ok: true });
+  }
 
   if (message.contact) {
     if (isAdmin) {
