@@ -41,6 +41,16 @@ Deno.serve(async(req)=>{
  const supplied=req.headers.get("x-radin-cron-secret")||"";
  const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+ const getTrialPreviewState = async (chatId: unknown) => {
+  const id=String(chatId||"");
+  if(!/^\d+$/.test(id))return {limited:false,active:false};
+  const {data,error}=await db.from("telegram_trial_accounts")
+   .select("phone_verified_at,trial_expires_at").eq("chat_id",id).maybeSingle();
+  if(error){console.error("Telegram trial preview state lookup failed",error.message);return {limited:true,active:false};}
+  const limited=Boolean(data?.phone_verified_at);
+  const active=limited&&Date.parse(String(data.trial_expires_at||""))>Date.now();
+  return {limited,active};
+ };
  const recordAiUsage=async(entry:{itemId:string;provider:string;model:string;task:string;status:string;usage?:any})=>{
   const usage=entry.usage||{};
   const inputTokens=Number.isFinite(Number(usage.prompt_tokens??usage.input_tokens))?Number(usage.prompt_tokens??usage.input_tokens):null;
@@ -97,16 +107,18 @@ Deno.serve(async(req)=>{
      const botToken=Deno.env.get("BOT_TOKEN")||"";
      if(!botToken)throw new Error("Telegram bot token unavailable for queued preview");
      const qualityNote=item.graphic_quality_status==="review"?"\n\n⚠️ بررسی کیفیت: "+String(item.graphic_quality_notes||"پوستر نیاز به بازبینی دارد.").slice(0,180):"";
+     const trialState=await getTrialPreviewState(item.telegram_chat_id);
+     const trialNote=trialState.limited?(trialState.active?"\n🔒 نسخهٔ آزمایشی: این خروجی برای پیش‌نمایش شماست؛ انتشار کانال با تأیید مدیر انجام می‌شود.":"\n⏳ مهلت آزمایشی این حساب پایان یافته است."):"";
      const sender=String(item.source_name||"").trim();
      const sourceNote=/^https?:\/\//i.test(String(item.source_url||""))?"\n🔎 منبع قابل پیگیری: "+new URL(String(item.source_url)).hostname:item.source_type==="telegram"?(sender.startsWith("@")?"\n📡 منبع فوروارد: "+sender+"؛ راستی‌آزمایی مستقل نشده":"\n⚠️ منبع فوروارد: "+(sender||"نامشخص")+"؛ شناسهٔ عمومی برای بررسی در دسترس نیست"):"";
      const received=item.created_at?"\nدریافت ربات: "+new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Tehran"}).format(new Date(item.created_at)):"";
      const storedBody=cleanPreviewBody(item.telegram_caption_edited&&item.rewritten_text?item.rewritten_text:item.telegram_translation_language&&item.rewritten_text?item.rewritten_text:item.summary);
      const previewBody=storedBody||cleanPreviewBody(item.title);
-     const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\n"+String(item.rewritten_title||item.title||"خبر رادین")+(previewBody?"\n\n"+previewBody:"")+sourceNote+received+qualityNote).slice(0,900);
+     const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\n"+String(item.rewritten_title||item.title||"خبر رادین")+(previewBody?"\n\n"+previewBody:"")+sourceNote+received+trialNote+qualityNote).slice(0,900);
      const keyboard:any[]=[
        [{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],
        [{text:"🎨 ویرایش تصویر",callback_data:"edit:graphic:"+item.id}],
-       [{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}],
+       ...(trialState.limited?[]:[[{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]]),
         [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+item.id}]
      ];
      if(item.graphic_quality_status==="review")keyboard.unshift([{text:"🔄 بازتولید پوستر",callback_data:"regenerate:"+item.id}]);
@@ -156,7 +168,7 @@ Deno.serve(async(req)=>{
        sourceImageUrl=candidate;break;
      }catch{}
    }
-   const isTelegram=item.source_type==="telegram";
+   const isTelegram=item.source_type==="telegram"||Boolean(item.telegram_chat_id);
    const openAiKey=Deno.env.get("OPENAI_API_KEY")||"";
    const cleanHeadline=(value:string)=>value.replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi,"").replace(/(?:^|\s)@[a-z0-9_]+/gi," ").replace(/^(?:[⏺🔹✅🔵⚪🔴]+\s*)+/u,"").replace(/\s+/g," ").trim();
    let rawTitle=cleanHeadline(String(item.title||""));
@@ -352,8 +364,10 @@ Deno.serve(async(req)=>{
      const {error:saveError}=await db.from("news_items").update({rewritten_title:textTitle,rewritten_text:textBody,updated_at:new Date().toISOString()}).eq("id",item.id);
      if(saveError)throw saveError;
      const botToken=Deno.env.get("BOT_TOKEN")||"";
-     const keyboard=[[{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],[{text:"🎨 درخواست طراحی پوستر",callback_data:"designposter:"+item.id}],[{text:"✅ انتشار فقط متن در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]];
-     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,text:"متن آمادهٔ بازبینی — هنوز تأیید یا منتشر نشده\n\n"+textTitle+"\n\n"+textBody,reply_markup:{inline_keyboard:keyboard},disable_web_page_preview:true}),signal:AbortSignal.timeout(20000)});
+     const trialState=await getTrialPreviewState(item.telegram_chat_id);
+     const trialNote=trialState.limited?(trialState.active?"\n\n🔒 نسخهٔ آزمایشی: این خروجی برای پیش‌نمایش شماست؛ انتشار کانال با تأیید مدیر انجام می‌شود.":"\n\n⏳ مهلت آزمایشی این حساب پایان یافته است."):"";
+     const keyboard=[[{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],[{text:"🎨 درخواست طراحی پوستر",callback_data:"designposter:"+item.id}],...(trialState.limited?[]:[[{text:"✅ انتشار فقط متن در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]])];
+     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,text:"متن آمادهٔ بازبینی — هنوز تأیید یا منتشر نشده\n\n"+textTitle+"\n\n"+textBody+trialNote,reply_markup:{inline_keyboard:keyboard},disable_web_page_preview:true}),signal:AbortSignal.timeout(20000)});
      const sentBody=await sent.json().catch(()=>({}));
      if(!sent.ok||!sentBody.ok)throw new Error("Telegram text preview failed: "+String(sentBody.description||sent.status));
      await db.from("news_items").update({telegram_preview_message_id:sentBody.result?.result?.message_id||sentBody.result?.message_id||null}).eq("id",item.id);
@@ -429,10 +443,12 @@ Deno.serve(async(req)=>{
      const botToken=Deno.env.get("BOT_TOKEN")||"";
      if(!botToken)throw new Error("Telegram bot token unavailable for queued preview");
      const qualityNote=graphicQualityStatus==="review"?"\n\n⚠️ بررسی کیفیت: "+String(graphicQualityNotes||"پوستر نیاز به بازبینی دارد.").slice(0,180):"";
+     const trialState=await getTrialPreviewState(item.telegram_chat_id);
+     const trialNote=trialState.limited?(trialState.active?"\n🔒 نسخهٔ آزمایشی: این خروجی برای پیش‌نمایش شماست؛ انتشار کانال با تأیید مدیر انجام می‌شود.":"\n⏳ مهلت آزمایشی این حساب پایان یافته است."):"";
      const keyboard:any[]=[
        [{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],
        [{text:"🎨 ویرایش تصویر",callback_data:"edit:graphic:"+item.id}],
-       [{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}],
+       ...(trialState.limited?[]:[[{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]]),
         [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+item.id}]
      ];
      if(graphicQualityStatus==="review")keyboard.unshift([{text:"🔄 بازتولید پوستر",callback_data:"regenerate:"+item.id}]);
@@ -440,7 +456,7 @@ Deno.serve(async(req)=>{
      const sourceNote=/^https?:\/\//i.test(String(item.source_url||""))?"\n🔎 منبع قابل پیگیری: "+new URL(String(item.source_url)).hostname:item.source_type==="telegram"?(sender.startsWith("@")?"\n📡 منبع فوروارد: "+sender+"؛ راستی‌آزمایی مستقل نشده":"\n⚠️ منبع فوروارد: "+(sender||"نامشخص")+"؛ شناسهٔ عمومی برای بررسی در دسترس نیست"):"";
      const received=item.created_at?"\nدریافت ربات: "+new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Tehran"}).format(new Date(item.created_at)):"";
      const previewBody=cleanPreviewBody(item.telegram_caption_edited&&item.rewritten_text?String(item.rewritten_text):rawSummary)||cleanPreviewBody(rawTitle)||cleanPreviewBody(String(item.title||""));
-     const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\n"+graphicHeadline+(previewBody?"\n\n"+previewBody:"")+sourceNote+received+qualityNote).slice(0,900);
+     const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\n"+graphicHeadline+(previewBody?"\n\n"+previewBody:"")+sourceNote+received+trialNote+qualityNote).slice(0,900);
      let sent:Response|null=null;
      let sentBody:any={};
      if(item.telegram_preview_message_id){
