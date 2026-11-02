@@ -208,7 +208,11 @@ Deno.serve(async (req: Request) => {
   const sourceName = sourceAliases[sourceLower] || rawSource.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "") || "خبر";
   const escapeHtml = (value: string) => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\x27/g,"&#39;");
   const rawFullStory = String(item.source_type === "telegram" ? (item.telegram_caption_edited ? item.rewritten_text : (item.original_summary || item.summary)) : (item.rewritten_text || item.original_summary || summary || "")).trim();
-  const fullStory = item.source_type === "telegram" ? stripTelegramTrace(rawFullStory) : rawFullStory;
+  const cleanedFullStory = item.source_type === "telegram" ? stripTelegramTrace(rawFullStory).trim() : rawFullStory;
+  const originalTelegramText = item.source_type === "telegram" ? stripTelegramTrace(String(item.original_title || item.title || item.rewritten_title || "")).trim() : "";
+  const fullStory = item.source_type === "telegram"
+    ? (/[\p{L}\p{N}]/u.test(cleanedFullStory) ? cleanedFullStory : originalTelegramText)
+    : cleanedFullStory;
   const dateLabel = (() => {
     if (!item.pub_date) return "";
     try {
