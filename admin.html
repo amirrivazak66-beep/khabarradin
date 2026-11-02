@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
-<title>پنل مدیریت | خبر رادین</title>
+<title>مدیریت اتاق خبر | نیوزروم هوشمند</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -166,6 +166,25 @@ a{text-decoration:none; color:inherit;}
   .stat-row{grid-template-columns:1fr;}
   .pass-fields{grid-template-columns:1fr;}
 }
+
+/* Product identity: neutral, workspace-first newsroom */
+:root{--navy-950:#071629;--navy-900:#0b1c33;--navy-800:#10253f;--navy-700:#193754;--gold:#58e0d0;--gold-light:#8df0e1;--bg:#f2f6f8;--text-dark:#10233a;--text-mute:#718399;--shadow-lg:0 22px 56px rgba(7,22,41,.18)}
+body{background:#f2f6f8}
+.dashboard-banner{background:radial-gradient(ellipse at 55% 5%,rgba(88,224,208,.28),transparent 48%),linear-gradient(115deg,#0b1c33,#102f4b 60%,#123b54);border-bottom:3px solid #58e0d0}
+.dashboard-banner:after{border-right-color:#58e0d0}
+.dashboard-banner .banner-brand{gap:12px}
+.dashboard-banner .banner-icon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(145deg,#8df0e1,#58e0d0);color:#071629;font-size:21px}
+.dashboard-banner .banner-brand strong{font-size:18px}
+.sidebar{background:#071629}
+.sidebar .brand .dot{background:linear-gradient(135deg,#8df0e1,#58e0d0);color:#071629}
+.sidebar nav a.active,.sidebar nav a:hover{background:#58e0d018;color:#8df0e1;border-color:#58e0d03b}
+#loginScreen{background:radial-gradient(circle at 30% 20%,#183b5b,#071629 62%)}
+.login-box{border-radius:24px}
+.login-box .lock-badge{background:linear-gradient(145deg,#8df0e1,#58e0d0);color:#071629;box-shadow:0 10px 24px #58e0d044}
+#loginBtn{background:linear-gradient(135deg,#8df0e1,#58e0d0);box-shadow:0 10px 24px #58e0d044}
+.field input:focus{border-color:#58cbbb}
+.panel,.stat-card{border-radius:18px}
+.btn-primary{background:linear-gradient(135deg,#45cbbb,#269a9b);border-color:#269a9b}
 </style>
 </head>
 <body>
@@ -174,7 +193,7 @@ a{text-decoration:none; color:inherit;}
     <div class="login-box">
       <div class="lock-badge"><i class="fa-solid fa-shield-halved"></i></div>
       <h2>ورود به پنل مدیریت</h2>
-      <p class="sub">پنل پشتیبانی و مدیریت محتوای خبر رادین<br>با ایمیل و رمز عبور حساب مدیریتی وارد شوید.</p>
+      <p class="sub">فضای کاری تحریریهٔ شما<br>برای مدیریت خبر، محتوا و انتشار وارد شوید.</p>
       <div class="field">
         <label>ایمیل</label>
         <input type="email" id="email" placeholder="admin@example.com" autocomplete="username">
@@ -192,16 +211,16 @@ a{text-decoration:none; color:inherit;}
   </div>
 
   <div id="dashboard">
-    <header class="dashboard-banner" aria-label="سربرگ خبر رادین">
+    <header class="dashboard-banner" aria-label="سربرگ اتاق خبر">
       <div class="banner-meta">
-        <span class="meta-item"><i class="fa-solid fa-globe"></i><span>khabarradin.ir</span></span>
+        <span class="meta-item"><i class="fa-solid fa-globe"></i><span>NEWSROOM WORKSPACE</span></span>
         <span class="sep"></span>
         <span class="meta-item"><i class="fa-regular fa-calendar-days"></i><span id="dashboardPersianDate">در حال بارگذاری تاریخ…</span></span>
       </div>
-      <div class="banner-brand"><img src="خبر-رادین.png" alt="لوگوی اصلی خبر رادین"><strong>خبر رادین</strong></div>
+      <div class="banner-brand"><span class="banner-icon"><i class="fa-solid fa-newspaper"></i></span><strong>نیوزروم هوشمند</strong></div>
     </header>
     <aside class="sidebar">
-      <div class="brand"><div class="dot"><i class="fa-solid fa-newspaper"></i></div><span>پنل خبر رادین</span></div>
+      <div class="brand"><div class="dot"><i class="fa-solid fa-newspaper"></i></div><span>اتاق خبر شما</span></div>
       <nav>
         <a data-view="viewDashboard" class="active"><i class="fa-solid fa-gauge"></i> داشبورد</a>
         <a data-view="viewFeeds"><i class="fa-solid fa-rss"></i> فیدهای RSS</a>
@@ -269,7 +288,7 @@ a{text-decoration:none; color:inherit;}
         </div>
       </section>
 
-      <section id="viewGraphicStudio" class="view"><div class="panel" style="padding:0;overflow:hidden"><div style="padding:16px 20px;border-bottom:1px solid #e7ebf2;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0 0 5px">استودیو گرافیک خبر رادین</h3><p class="sub" style="margin:0">ساخت قالب خبری، استفاده از لوگوی اصلی و ذخیره تصویر برای خبرهای صف بررسی</p></div><a class="btn-secondary" href="graphic-studio.html" target="_blank" rel="noopener" style="padding:10px 14px;border-radius:9px">باز کردن در تب جدید ↗</a></div><iframe src="graphic-studio.html" title="استودیو گرافیک خبر رادین" loading="lazy" style="display:block;width:100%;height:calc(100vh - 190px);min-height:760px;border:0;background:#edf1f7"></iframe></div></section>
+      <section id="viewGraphicStudio" class="view"><div class="panel" style="padding:0;overflow:hidden"><div style="padding:16px 20px;border-bottom:1px solid #e7ebf2;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0 0 5px">استودیو گرافیک</h3><p class="sub" style="margin:0">ساخت قالب خبری، استفاده از لوگوی اصلی و ذخیره تصویر برای خبرهای صف بررسی</p></div><a class="btn-secondary" href="graphic-studio.html" target="_blank" rel="noopener" style="padding:10px 14px;border-radius:9px">باز کردن در تب جدید ↗</a></div><iframe src="graphic-studio.html" title="استودیو گرافیک" loading="lazy" style="display:block;width:100%;height:calc(100vh - 190px);min-height:760px;border:0;background:#edf1f7"></iframe></div></section>
 
       <section id="viewBotSettings" class="view">
         <div class="panel">
@@ -308,10 +327,10 @@ a{text-decoration:none; color:inherit;}
         <div class="panel">
           <h3>تنظیمات تحریریه هوشمند</h3>
           <p class="sub">این گزینه‌ها سیاست تحریریه را ذخیره می‌کنند. برای اجرای واقعی بازنویسی و تولید تصویر، سرویس پردازش باید به آن‌ها متصل شود.</p>
-          <label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="rewriteEnabled" type="checkbox" checked> بازنویسی خبر به لحن خبر رادین</label>
+          <label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="rewriteEnabled" type="checkbox" checked> بازنویسی خبر با لحن اختصاصی رسانه</label>
           <div class="field"><label for="reviewMode">نیاز به تأیید مدیر</label><select id="reviewMode" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit"><option value="sensitive">فقط خبرهای حساس (پیشنهادی)</option><option value="all">تمام خبرها</option><option value="none">بدون تأیید (فعلاً اجرا نمی‌شود)</option></select></div>
-          <div class="field"><label for="imageMode">روش تصویر و گرافیک</label><select id="imageMode" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit"><option value="template">قالب گرافیکی خبر رادین</option><option value="ai">تولید تصویر با هوش مصنوعی</option><option value="original">استفاده از تصویر منبع</option></select></div>
-          <div class="field"><label for="brandVoice">دستورالعمل لحن و بازنویسی</label><textarea id="brandVoice" rows="4" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit">خبر رادین: فارسی روان، دقیق، بی‌طرف در بازنویسی خبر، تیتر کوتاه و روشن؛ بدون افزودن ادعای تأییدنشده.</textarea></div>
+          <div class="field"><label for="imageMode">روش تصویر و گرافیک</label><select id="imageMode" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit"><option value="template">قالب گرافیکی رسانه</option><option value="ai">تولید تصویر با هوش مصنوعی</option><option value="original">استفاده از تصویر منبع</option></select></div>
+          <div class="field"><label for="brandVoice">دستورالعمل لحن و بازنویسی</label><textarea id="brandVoice" rows="4" style="width:100%;border:1.5px solid #e3e7ee;border-radius:9px;padding:11px;font-family:inherit">رسانهٔ من: فارسی روان و دقیق، لحن بی‌طرف، تیتر کوتاه و روشن؛ بدون افزودن ادعای تأییدنشده.</textarea></div>
           <div class="row-actions"><button class="btn-primary" id="saveEditorialSettingsBtn">ذخیره تنظیمات تحریریه</button></div>
           <div class="save-msg" id="editorialSaveMsg"></div><div class="login-error" id="editorialSaveError" style="display:none"></div>
         </div>
@@ -786,7 +805,7 @@ a{text-decoration:none; color:inherit;}
     document.getElementById('rewriteEnabled').checked=data.rewrite_enabled!==false;
     document.getElementById('reviewMode').value=data.default_review_mode||'sensitive';
     document.getElementById('imageMode').value=data.image_mode||'template';
-    document.getElementById('brandVoice').value=data.brand_voice||'خبر رادین: فارسی روان، دقیق، بی‌طرف در بازنویسی خبر، تیتر کوتاه و روشن؛ بدون افزودن ادعای تأییدنشده.';
+    document.getElementById('brandVoice').value=data.brand_voice||'رسانهٔ من: فارسی روان و دقیق، لحن بی‌طرف، تیتر کوتاه و روشن؛ بدون افزودن ادعای تأییدنشده.';
   }
   document.getElementById('saveEditorialSettingsBtn').addEventListener('click',async()=>{
     const b=document.getElementById('saveEditorialSettingsBtn'), ok=document.getElementById('editorialSaveMsg'), er=document.getElementById('editorialSaveError');
