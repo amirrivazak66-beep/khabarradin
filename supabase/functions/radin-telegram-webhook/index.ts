@@ -337,6 +337,19 @@ Deno.serve(async (req: Request) => {
       await answerCallback(String(callback.id), "این عملیات فقط برای مدیر ربات در دسترس است.");
       return json({ ok: true });
     }
+    const processChoice=data.match(/^processnews:([0-9a-f-]{36}):(ar|en|none):(0|1)$/i);
+    if(processChoice){
+      const [,itemId,language,design]=processChoice;
+      const chatId=callback.message?.chat?.id;
+      await answerCallback(String(callback.id),"انتخاب ذخیره شد؛ پردازش شروع شد.");
+      await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:callback.message?.message_id,reply_markup:{inline_keyboard:[]}});
+      const {error:optionError}=await db.from("news_items").update({telegram_translation_language:language==="none"?null:language,telegram_generate_graphic:design==="1"}).eq("id",itemId).eq("published",false);
+      if(optionError){await telegram("sendMessage",{chat_id:chatId,text:"ذخیره انتخاب‌ها ناموفق بود؛ دوباره خبر را فوروارد کنید."});return json({ok:true});}
+      const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId}),signal:AbortSignal.timeout(140000)});
+      const result:any=await worker.json().catch(()=>({}));
+      if(!worker.ok||!result.results?.some((x:any)=>x.id===itemId&&x.ok))await telegram("sendMessage",{chat_id:chatId,text:"خبر در صف آماده‌سازی باقی ماند و پردازش خودکار ادامه پیدا می‌کند."});
+      return json({ok:true});
+    }
     if (data.startsWith("insta:export:")) {
       const itemMatch = data.match(/^insta:export:([0-9a-f-]{36})$/i);
       const chatId = callback.message?.chat?.id;
@@ -1236,22 +1249,13 @@ Deno.serve(async (req: Request) => {
   }
 
   await db.from("bot_activity").insert({event_type:"received",item_id:itemId,actor:"telegram",details:{title,source:sourceName}});
-  const worker = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
-    method: "POST",
-    headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
-    body: JSON.stringify({ item_id: itemId }),
-    signal: AbortSignal.timeout(140000),
-  });
-  let workerResult: any = {};
-  try { workerResult = await worker.json(); } catch {}
-  if (!worker.ok || !workerResult.ok || !workerResult.results?.some((row: any) => row.id === itemId && row.ok)) {
-    console.error("Graphic generation failed", worker.status, JSON.stringify(workerResult).slice(0, 500));
-    const failedItem = (workerResult.results || []).find((row: any) => row.id === itemId);
-    const headlineUnavailable = /AI headline unavailable/i.test(String(failedItem?.error || ""));
-    await telegram("sendMessage", { chat_id: chatId, text: "خبر ثبت شد و در صف آماده‌سازی باقی ماند. ربات به‌صورت خودکار دوباره تلاش می‌کند و پس از آماده‌شدن پوستر همین‌جا می‌فرستد؛ نیازی به ارسال دوباره نیست." });
-    return json({ ok: true });
-  }
-
+  const optionKeyboard={inline_keyboard:[
+    [{text:"🇸🇦 عربی ← فارسی",callback_data:"processnews:"+itemId+":ar:1"},{text:"🇬🇧 انگلیسی ← فارسی",callback_data:"processnews:"+itemId+":en:1"}],
+    [{text:"🌐 بدون ترجمه",callback_data:"processnews:"+itemId+":none:1"},{text:"📝 فقط متن، بدون پوستر",callback_data:"processnews:"+itemId+":none:0"}],
+    [{text:"عربی ← فارسی، فقط متن",callback_data:"processnews:"+itemId+":ar:0"},{text:"انگلیسی ← فارسی، فقط متن",callback_data:"processnews:"+itemId+":en:0"}]
+  ]};
+  await telegram("sendMessage",{chat_id:chatId,text:"زبان خبر و نوع خروجی را انتخاب کنید:",reply_markup:optionKeyboard});
+  return json({ok:true});
   const { data: ready } = await db.from("news_items")
     .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,source_url,pub_date,created_at,graphic_image_url,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
     .eq("id", itemId).maybeSingle();
