@@ -1006,7 +1006,7 @@ Deno.serve(async (req: Request) => {
     : "telegram:forwarded/" + String(forwardChat?.id || chatId) + "/" + String(forwardMessageId || message.message_id || update.update_id);
   const acknowledgement = await telegram("sendMessage", {
     chat_id: chatId,
-    text: "📥 خبر دریافت شد؛ در حال آماده‌سازی تصویر گرافیکی...",
+    text: "📥 خبر دریافت شد؛ در حال تحلیل و آنالیز محتوایی، ترجمه و آماده‌سازی خروجی...",
     disable_web_page_preview: true,
   });
   if (!acknowledgement.response.ok || !acknowledgement.result.ok) {
