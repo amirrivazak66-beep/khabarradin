@@ -725,6 +725,23 @@ Deno.serve(async (req: Request) => {
       await answerCallback(String(callback.id), "منتظر متن ویرایش‌شده هستم.");
       return json({ ok: true });
     }
+    const restoreMatch=data.match(/^restorepub:([0-9a-f-]{36})$/i);
+    if(restoreMatch){
+      const itemId=restoreMatch[1],chatId=callback.message?.chat?.id,messageId=callback.message?.message_id;
+      const {data:item,error:readError}=await db.from("news_items").select("id,title,rewritten_title,published,review_status,telegram_chat_id").eq("id",itemId).maybeSingle();
+      if(readError||!item||!item.published){await answerCallback(String(callback.id),"این خبر منتشرشده پیدا نشد.");return json({ok:true});}
+      const {data:changed,error}=await db.from("news_items").update({published:false,review_status:"pending",telegram_message_id:null,scheduled_at:null,updated_at:new Date().toISOString()}).eq("id",itemId).eq("published",true).select("id").maybeSingle();
+      if(error||!changed){await answerCallback(String(callback.id),"بازگردانی خبر ناموفق بود.");return json({ok:true});}
+      await db.from("bot_activity").insert({event_type:"publication_reopened",item_id:itemId,actor:"telegram:"+userId,details:{reason:"درخواست بازبینی/انتشار مجدد"}});
+      await answerCallback(String(callback.id),"خبر برای ویرایش یا انتشار مجدد فعال شد.");
+      await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:messageId,reply_markup:{inline_keyboard:[
+        [{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+itemId},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+itemId}],
+        [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+itemId}],
+        [{text:"✅ انتشار مجدد در کانال",callback_data:"publish:"+itemId},{text:"🗑 رد خبر",callback_data:"reject:"+itemId}]
+      ]}});
+      await telegram("sendMessage",{chat_id:chatId,text:"🔓 خبر دوباره برای ویرایش و انتشار فعال شد. پس از ویرایش، «انتشار مجدد در کانال» را بزنید."});
+      return json({ok:true});
+    }
     const match = data.match(/^(publish|reject):([0-9a-f-]{36})$/i);
     if (!match) {
       await answerCallback(String(callback.id), "درخواست نامعتبر است.");
@@ -767,11 +784,15 @@ Deno.serve(async (req: Request) => {
     }
     await answerCallback(String(callback.id), "در کانال منتشر شد.");
     await telegram("editMessageReplyMarkup", {
-      chat_id: callback.message?.chat?.id, message_id: callback.message?.message_id, reply_markup: { inline_keyboard: [] },
+      chat_id: callback.message?.chat?.id, message_id: callback.message?.message_id,
+      reply_markup: { inline_keyboard: [
+        [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+itemId}],
+        [{text:"🔁 بازگردانی برای ویرایش یا انتشار مجدد",callback_data:"restorepub:"+itemId}]
+      ] }
     });
     await telegram("sendMessage", {
       chat_id: callback.message?.chat?.id,
-      text: "✅ خبر با تصویر گرافیکی در کانال منتشر شد.\nشناسه پیام: " + String(publishResult.message_id || "نامشخص"),
+      text: "✅ خبر در کانال منتشر شد.\nشناسه پیام: " + String(publishResult.message_id || "نامشخص") + "\n\nاگر پست کانال حذف شد یا نیاز به اصلاح داشت، «بازگردانی» را بزنید.",
     });
     return json({ ok: true });
   }
