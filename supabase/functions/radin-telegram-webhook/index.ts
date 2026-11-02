@@ -337,6 +337,114 @@ Deno.serve(async (req: Request) => {
       await answerCallback(String(callback.id), "این عملیات فقط برای مدیر ربات در دسترس است.");
       return json({ ok: true });
     }
+    const processChoice=data.match(/^processnews:([0-9a-f-]{36}):(ar|en|none)$/i);
+    if(processChoice){
+      const [,itemId,language]=processChoice;
+      const chatId=callback.message?.chat?.id;
+      await answerCallback(String(callback.id),"زبان ثبت شد؛ ابتدا متن آماده می‌شود.");
+      await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:callback.message?.message_id,reply_markup:{inline_keyboard:[]}});
+      const {error:optionError}=await db.from("news_items").update({telegram_translation_language:language==="none"?null:language,telegram_generate_graphic:false,telegram_preview_message_id:null}).eq("id",itemId).eq("published",false);
+      if(optionError){await telegram("sendMessage",{chat_id:chatId,text:"ذخیره زبان ناموفق بود؛ خبر را دوباره فوروارد کنید."});return json({ok:true});}
+      const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
+      const result:any=await worker.json().catch(()=>({}));
+      if(!worker.ok||!result.results?.some((x:any)=>x.id===itemId&&x.ok))await telegram("sendMessage",{chat_id:chatId,text:"آماده‌سازی متن ادامه دارد؛ نتیجه پس از تکمیل همین‌جا می‌آید."});
+      return json({ok:true});
+    }
+    const designChoice=data.match(/^designposter:([0-9a-f-]{36})$/i);
+    if(designChoice){
+      const itemId=designChoice[1],chatId=callback.message?.chat?.id,messageId=callback.message?.message_id;
+      const {data:item,error}=await db.from("news_items").select("id,published,review_status,telegram_chat_id").eq("id",itemId).maybeSingle();
+      if(error||!item||item.published||item.review_status==="rejected"){await answerCallback(String(callback.id),"این خبر دیگر قابل طراحی نیست.");return json({ok:true});}
+      await answerCallback(String(callback.id),"درخواست طراحی ثبت شد.");
+      await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:messageId,reply_markup:{inline_keyboard:[]}});
+      await db.from("news_items").update({telegram_generate_graphic:true,telegram_preview_message_id:null,graphic_image_url:null,graphic_quality_status:null,graphic_quality_score:null,graphic_quality_notes:null,updated_at:new Date().toISOString()}).eq("id",itemId).eq("published",false);
+      const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
+      const result:any=await worker.json().catch(()=>({}));
+      if(!worker.ok||!result.results?.some((x:any)=>x.id===itemId&&x.ok))await telegram("sendMessage",{chat_id:chatId,text:"درخواست طراحی ثبت شد؛ پوستر در صف آماده‌سازی است."});
+      return json({ok:true});
+    }
+    if (data.startsWith("insta:export:")) {
+      const itemMatch = data.match(/^insta:export:([0-9a-f-]{36})$/i);
+      const chatId = callback.message?.chat?.id;
+      if (!itemMatch || !chatId) {
+        await answerCallback(String(callback.id), "درخواست بسته اینستاگرام معتبر نیست.");
+        return json({ ok: true });
+      }
+
+      const itemId = itemMatch[1];
+      await answerCallback(String(callback.id), "در حال آماده‌سازی فایل‌های اینستاگرام...");
+      try {
+        const exportResponse = await fetch(supabaseUrl + "/functions/v1/radin-instagram-export", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-radin-telegram-secret": webhookSecret },
+          body: JSON.stringify({ id: itemId }),
+          signal: AbortSignal.timeout(90000),
+        });
+        const exported: any = await exportResponse.json().catch(() => ({}));
+        if (!exportResponse.ok || !exported.ok) {
+          throw new Error(String(exported.error || "ساخت فایل‌ها ناموفق بود."));
+        }
+        if (!String(exported.caption || "").trim()) throw new Error("کپشن آماده پیدا نشد.");
+
+        const storageHost = new URL(supabaseUrl).host;
+        const sendAssetDocument = async (assetUrlValue: unknown, baseName: string, label: string) => {
+          let assetUrl: URL;
+          try { assetUrl = new URL(String(assetUrlValue || "")); }
+          catch { throw new Error("نشانی یکی از فایل‌های خروجی معتبر نیست."); }
+          if (assetUrl.host !== storageHost || !assetUrl.pathname.includes("/storage/v1/object/public/radin-graphics/")) {
+            throw new Error("فایل خروجی در فضای ذخیره‌سازی رادین پیدا نشد.");
+          }
+          const fileResponse = await fetch(assetUrl, { signal: AbortSignal.timeout(45000) });
+          if (!fileResponse.ok) throw new Error("دریافت فایل خروجی ناموفق بود.");
+          const imageType = (fileResponse.headers.get("content-type") || "").split(";")[0].toLowerCase();
+          if (!["image/png", "image/jpeg", "image/webp"].includes(imageType)) {
+            throw new Error("فرمت فایل خروجی پشتیبانی نمی‌شود.");
+          }
+          const bytes = new Uint8Array(await fileResponse.arrayBuffer());
+          if (!bytes.length || bytes.length > 49 * 1024 * 1024) throw new Error("حجم فایل خروجی از حد ارسال تلگرام بیشتر است.");
+          const extension = imageType === "image/jpeg" ? "jpg" : imageType === "image/webp" ? "webp" : "png";
+          const form = new FormData();
+          form.set("chat_id", String(chatId));
+          form.set("document", new Blob([bytes], { type: imageType }), baseName + "." + extension);
+          form.set("caption", label);
+          const sent = await fetch("https://api.telegram.org/bot" + botToken + "/sendDocument", {
+            method: "POST",
+            body: form,
+            signal: AbortSignal.timeout(60000),
+          });
+          const telegramResult: any = await sent.json().catch(() => ({}));
+          if (!sent.ok || !telegramResult.ok) {
+            throw new Error(String(telegramResult.description || "ارسال فایل به تلگرام ناموفق بود."));
+          }
+        };
+
+        await sendAssetDocument(exported.feed_image_url, "radin-instagram-feed-1080x1350", "پست فید اینستاگرام • 1080×1350 • نسبت 4:5");
+        await sendAssetDocument(exported.story_image_url, "radin-instagram-story-1080x1920", "استوری اینستاگرام • 1080×1920 • نسبت 9:16");
+        const captionSent = await telegram("sendMessage", {
+          chat_id: chatId,
+          text: "کپشن آماده اینستاگرام؛ برای کپی:\n\n" + String(exported.caption).slice(0, 3000),
+          disable_web_page_preview: true,
+        });
+        if (!captionSent.response.ok || !captionSent.result.ok) {
+          throw new Error("ارسال کپشن به تلگرام ناموفق بود.");
+        }
+        await db.from("bot_activity").insert({
+          event_type: "instagram_assets_prepared",
+          item_id: itemId,
+          actor: "telegram:" + userId,
+          details: { feed: "1080x1350", story: "1080x1920" },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "خطای نامشخص";
+        console.error("Manual Instagram export failed", { itemId, error: message });
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: "❌ آماده‌سازی یا ارسال بسته اینستاگرام ناموفق بود: " + message.slice(0, 300),
+          disable_web_page_preview: true,
+        });
+      }
+      return json({ ok: true });
+    }
     if (data.startsWith("boterrors:")) {
       const chat=callback.message?.chat?.id, messageId=callback.message?.message_id;
       if(data==="boterrors:refresh"){await answerCallback(String(callback.id));await showBotErrors(chat,messageId);return json({ok:true});}
@@ -479,7 +587,9 @@ Deno.serve(async (req: Request) => {
       const caption = ("پیش‌نمایش خبر — هنوز منتشر نشده\n" + String(ready.rewritten_title || ready.title || "") + (ready.rewritten_text ? "\n\n" + ready.rewritten_text : ready.summary ? "\n\n" + ready.summary : "") + note).slice(0, 1024);
       const keyboard: any[] = [
         [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + itemId }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + itemId }],
+        [{ text: "🎨 ویرایش تصویر", callback_data: "edit:graphic:" + itemId }],
         [{ text: "✅ انتشار در کانال", callback_data: "publish:" + itemId }, { text: "🗑 رد خبر", callback_data: "reject:" + itemId }],
+        [{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + itemId }],
       ];
       if (ready.graphic_quality_status === "review") keyboard.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]);
       const edited = await telegram("editMessageMedia", { chat_id: chat, message_id: messageId, media: { type: "photo", media: ready.graphic_image_url, caption }, reply_markup: { inline_keyboard: keyboard } });
@@ -581,23 +691,29 @@ Deno.serve(async (req: Request) => {
       await answerCallback(String(callback.id), "گزینهٔ تنظیمات شناخته نشد.");
       return json({ ok: true });
     }
-    const editMatch = data.match(/^edit:(headline|caption):([0-9a-f-]{36})$/i);
+    const editMatch = data.match(/^edit:(headline|caption|graphic):([0-9a-f-]{36})$/i);
     if (editMatch) {
       const editType = editMatch[1];
       const itemId = editMatch[2];
       const chatId = callback.message?.chat?.id;
-      const { data: item } = await db.from("news_items").select("id,telegram_chat_id,published,review_status").eq("id", itemId).maybeSingle();
+      const { data: item } = await db.from("news_items").select("id,telegram_chat_id,published,review_status,graphic_image_url").eq("id", itemId).maybeSingle();
       if (!item || item.published || item.review_status === "rejected" ||
           (item.telegram_chat_id && String(item.telegram_chat_id) !== String(chatId))) {
         await answerCallback(String(callback.id), "این خبر دیگر قابل ویرایش نیست.");
         return json({ ok: true });
       }
+      if (editType === "graphic" && !item.graphic_image_url) {
+        await answerCallback(String(callback.id), "پوستر آماده‌ای برای ویرایش پیدا نشد.");
+        return json({ ok: true });
+      }
       const prompt = editType === "headline"
         ? "تیتر جایگزین را در پاسخ به همین پیام بفرستید (حداکثر ۵۲ نویسه). پوستر با تیتر تازه دوباره ساخته می‌شود."
-        : "متن کپشن خبر را در پاسخ به همین پیام بفرستید. متن جدید هنگام انتشار جایگزین متن فعلی می‌شود.";
+        : editType === "caption"
+        ? "متن کپشن خبر را در پاسخ به همین پیام بفرستید. متن جدید هنگام انتشار جایگزین متن فعلی می‌شود."
+        : "تغییرات تصویری موردنظر را دقیق و کوتاه بنویسید؛ مثلاً سوژه را بزرگ‌تر کن، نور را گرم‌تر کن یا پس‌زمینه را عوض کن. تیتر و کپشن خبر حفظ می‌شوند و نسخهٔ تازه برای بازبینی می‌آید.";
       const sentPrompt = await telegram("sendMessage", {
         chat_id: chatId, text: prompt,
-        reply_markup: { force_reply: true, selective: true, input_field_placeholder: editType === "headline" ? "تیتر جدید..." : "کپشن جدید..." },
+        reply_markup: { force_reply: true, selective: true, input_field_placeholder: editType === "headline" ? "تیتر جدید..." : editType === "caption" ? "کپشن جدید..." : "تغییر تصویری..." },
       });
       if (!sentPrompt.response.ok || !sentPrompt.result.ok) {
         await answerCallback(String(callback.id), "ارسال درخواست ویرایش ناموفق بود.");
@@ -613,8 +729,26 @@ Deno.serve(async (req: Request) => {
         await answerCallback(String(callback.id), "ثبت درخواست ویرایش ناموفق بود.");
         return json({ ok: true });
       }
-      await answerCallback(String(callback.id), "منتظر متن ویرایش‌شده هستم.");
+      await answerCallback(String(callback.id), editType === "graphic" ? "منتظر توضیح تغییر تصویر هستم." : "منتظر متن ویرایش‌شده هستم.");
       return json({ ok: true });
+    }
+    const restoreMatch=data.match(/^restorepub:([0-9a-f-]{36})$/i);
+    if(restoreMatch){
+      const itemId=restoreMatch[1],chatId=callback.message?.chat?.id,messageId=callback.message?.message_id;
+      const {data:item,error:readError}=await db.from("news_items").select("id,title,rewritten_title,published,review_status,telegram_chat_id").eq("id",itemId).maybeSingle();
+      if(readError||!item||!item.published){await answerCallback(String(callback.id),"این خبر منتشرشده پیدا نشد.");return json({ok:true});}
+      const {data:changed,error}=await db.from("news_items").update({published:false,review_status:"pending",telegram_message_id:null,scheduled_at:null,updated_at:new Date().toISOString()}).eq("id",itemId).eq("published",true).select("id").maybeSingle();
+      if(error||!changed){await answerCallback(String(callback.id),"بازگردانی خبر ناموفق بود.");return json({ok:true});}
+      await db.from("bot_activity").insert({event_type:"publication_reopened",item_id:itemId,actor:"telegram:"+userId,details:{reason:"درخواست بازبینی/انتشار مجدد"}});
+      await answerCallback(String(callback.id),"خبر برای ویرایش یا انتشار مجدد فعال شد.");
+      await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:messageId,reply_markup:{inline_keyboard:[
+        [{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+itemId},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+itemId}],
+         [{text:"🎨 ویرایش تصویر",callback_data:"edit:graphic:"+itemId}],
+        [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+itemId}],
+        [{text:"✅ انتشار مجدد در کانال",callback_data:"publish:"+itemId},{text:"🗑 رد خبر",callback_data:"reject:"+itemId}]
+      ]}});
+      await telegram("sendMessage",{chat_id:chatId,text:"🔓 خبر دوباره برای ویرایش و انتشار فعال شد. پس از ویرایش، «انتشار مجدد در کانال» را بزنید."});
+      return json({ok:true});
     }
     const match = data.match(/^(publish|reject):([0-9a-f-]{36})$/i);
     if (!match) {
@@ -658,11 +792,15 @@ Deno.serve(async (req: Request) => {
     }
     await answerCallback(String(callback.id), "در کانال منتشر شد.");
     await telegram("editMessageReplyMarkup", {
-      chat_id: callback.message?.chat?.id, message_id: callback.message?.message_id, reply_markup: { inline_keyboard: [] },
+      chat_id: callback.message?.chat?.id, message_id: callback.message?.message_id,
+      reply_markup: { inline_keyboard: [
+        [{text:"📥 بسته اینستاگرام",callback_data:"insta:export:"+itemId}],
+        [{text:"🔁 بازگردانی برای ویرایش یا انتشار مجدد",callback_data:"restorepub:"+itemId}]
+      ] }
     });
     await telegram("sendMessage", {
       chat_id: callback.message?.chat?.id,
-      text: "✅ خبر با تصویر گرافیکی در کانال منتشر شد.\nشناسه پیام: " + String(publishResult.message_id || "نامشخص"),
+      text: "✅ خبر در کانال منتشر شد.\nشناسه پیام: " + String(publishResult.message_id || "نامشخص") + "\n\nاگر پست کانال حذف شد یا نیاز به اصلاح داشت، «بازگردانی» را بزنید.",
     });
     return json({ ok: true });
   }
@@ -703,11 +841,92 @@ Deno.serve(async (req: Request) => {
       const keyboard = (id: string, qualityStatus?: string) => {
         const rows: any[] = [
           [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + id }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + id }],
+          [{ text: "🎨 ویرایش تصویر", callback_data: "edit:graphic:" + id }],
           [{ text: "✅ انتشار در کانال", callback_data: "publish:" + id }, { text: "🗑 رد خبر", callback_data: "reject:" + id }],
+        [{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + id }],
         ];
         if (qualityStatus === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + id }]);
         return { inline_keyboard: rows };
       };
+      if (editing.telegram_edit_type === "graphic") {
+        if (cleanValue.length < 4 || cleanValue.length > 600) {
+          await telegram("sendMessage", { chat_id: chatId, text: "توضیح ویرایش تصویر باید بین ۴ تا ۶۰۰ نویسه باشد. کوتاه‌تر و روشن‌تر بنویسید و دوباره به پیام درخواست پاسخ دهید." });
+          return json({ ok: true });
+        }
+        const { data: priorEdits } = await db.from("bot_activity").select("details")
+          .eq("event_type", "graphic_regenerated").eq("item_id", editing.id)
+          .order("created_at", { ascending: false }).limit(8);
+        const promptHistory = (priorEdits || [])
+          .map((event: any) => String(event.details?.graphic_edit_prompt || "").trim())
+          .filter((value: string) => value.length >= 4)
+          .slice(0, 2).reverse();
+        const fullGraphicPrompt = [...promptHistory, cleanValue]
+          .map((value, index) => index === promptHistory.length ? "آخرین درخواست ویرایش (اولویت بالاتر): " + value : "درخواست قبلی: " + value)
+          .join("\n").slice(0, 2200);
+        const { error: sessionError } = await db.from("news_items").update({
+          ...clearSession, review_status: "pending",
+        }).eq("id", editing.id).eq("published", false);
+        if (sessionError) {
+          await telegram("sendMessage", { chat_id: chatId, text: "ثبت درخواست ویرایش تصویر ناموفق بود؛ دوباره تلاش کنید." });
+          return json({ ok: true });
+        }
+        if (editing.telegram_preview_message_id) {
+          await telegram("editMessageReplyMarkup", { chat_id: chatId, message_id: editing.telegram_preview_message_id, reply_markup: { inline_keyboard: [] } });
+        }
+        await telegram("sendMessage", { chat_id: chatId, text: "🎨 درخواست دریافت شد؛ تصویر را با حفظ تیتر و کپشن بازطراحی می‌کنم..." });
+        let workerResponse: Response | null = null;
+        let workerResult: any = {};
+        try {
+          workerResponse = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
+            method: "POST",
+            headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
+            body: JSON.stringify({ item_id: editing.id, graphic_edit_prompt: fullGraphicPrompt, preserve_headline: true }),
+            signal: AbortSignal.timeout(150000),
+          });
+          try { workerResult = await workerResponse.json(); } catch {}
+        } catch (error) {
+          console.error("Graphic edit worker request failed", error instanceof Error ? error.message : "unknown");
+        }
+        const success = !!workerResponse?.ok && workerResult.results?.some((row: any) => row.id === editing.id && row.ok);
+        const { data: ready } = await db.from("news_items")
+          .select("title,summary,rewritten_title,rewritten_text,graphic_image_url,telegram_preview_message_id,graphic_quality_status")
+          .eq("id", editing.id).maybeSingle();
+        if (!success || !ready?.graphic_image_url) {
+          if (editing.telegram_preview_message_id) {
+            await telegram("editMessageReplyMarkup", { chat_id: chatId, message_id: editing.telegram_preview_message_id, reply_markup: keyboard(editing.id, editing.graphic_quality_status) });
+          }
+          await telegram("sendMessage", { chat_id: chatId, text: "بازطراحی تصویر انجام نشد؛ پوستر قبلی حفظ شده است. دوباره درخواست بدهید یا با همان پیش‌نمایش ادامه دهید." });
+          return json({ ok: true });
+        }
+        const previewCaption = ("پیش‌نمایش خبر — هنوز منتشر نشده\n" + String(ready.rewritten_title || ready.title || "خبر رادین") + (ready.rewritten_text ? "\n\n" + ready.rewritten_text : ready.summary ? "\n\n" + ready.summary : "")).slice(0, 1024);
+        let previewMessageId = ready.telegram_preview_message_id || editing.telegram_preview_message_id;
+        let previewUpdated = false;
+        if (previewMessageId) {
+          const editedPhoto = await telegram("editMessageMedia", {
+            chat_id: chatId, message_id: previewMessageId,
+            media: { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
+            reply_markup: keyboard(editing.id, ready.graphic_quality_status),
+          });
+          previewUpdated = editedPhoto.response.ok && editedPhoto.result.ok;
+        }
+        if (!previewUpdated) {
+          const sent = await telegram("sendPhoto", {
+            chat_id: chatId, photo: ready.graphic_image_url, caption: previewCaption,
+            reply_markup: keyboard(editing.id, ready.graphic_quality_status),
+          });
+          if (sent.response.ok && sent.result.ok) previewMessageId = sent.result.result?.message_id || previewMessageId;
+          else console.error("Updated graphic preview could not be sent", sent.result?.description || "unknown");
+        }
+        if (previewMessageId) await db.from("news_items").update({ telegram_preview_message_id: previewMessageId }).eq("id", editing.id);
+        await db.from("bot_activity").insert({
+          event_type: "graphic_regenerated", item_id: editing.id, actor: "telegram:" + userId,
+          details: { graphic_edit_prompt: fullGraphicPrompt, title: ready.rewritten_title || ready.title || "" },
+        });
+        await telegram("sendMessage", { chat_id: chatId, text: previewUpdated || previewMessageId
+          ? "✅ نسخهٔ تازهٔ پوستر آماده است؛ پیش‌نمایش را ببینید و در صورت تأیید «انتشار در کانال» را بزنید."
+          : "✅ تصویر بازطراحی شد و ذخیره شد؛ اما پیش‌نمایش تلگرام به‌روزرسانی نشد. از صف خبر برای بررسی استفاده کنید." });
+        return json({ ok: true });
+      }
       if (editing.telegram_edit_type === "caption") {
         const { error } = await db.from("news_items").update({ ...clearSession, rewritten_text: cleanValue, telegram_caption_edited: true }).eq("id", editing.id).eq("published", false);
         if (error) {
@@ -909,7 +1128,7 @@ Deno.serve(async (req: Request) => {
     : "telegram:forwarded/" + String(forwardChat?.id || chatId) + "/" + String(forwardMessageId || message.message_id || update.update_id);
   const acknowledgement = await telegram("sendMessage", {
     chat_id: chatId,
-    text: "📥 خبر دریافت شد؛ در حال آماده‌سازی تصویر گرافیکی...",
+    text: "📥 خبر دریافت شد؛ در حال تحلیل و آنالیز محتوایی، ترجمه و آماده‌سازی خروجی...",
     disable_web_page_preview: true,
   });
   if (!acknowledgement.response.ok || !acknowledgement.result.ok) {
@@ -1152,22 +1371,13 @@ Deno.serve(async (req: Request) => {
   }
 
   await db.from("bot_activity").insert({event_type:"received",item_id:itemId,actor:"telegram",details:{title,source:sourceName}});
-  const worker = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
-    method: "POST",
-    headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
-    body: JSON.stringify({ item_id: itemId }),
-    signal: AbortSignal.timeout(140000),
-  });
-  let workerResult: any = {};
-  try { workerResult = await worker.json(); } catch {}
-  if (!worker.ok || !workerResult.ok || !workerResult.results?.some((row: any) => row.id === itemId && row.ok)) {
-    console.error("Graphic generation failed", worker.status, JSON.stringify(workerResult).slice(0, 500));
-    const failedItem = (workerResult.results || []).find((row: any) => row.id === itemId);
-    const headlineUnavailable = /AI headline unavailable/i.test(String(failedItem?.error || ""));
-    await telegram("sendMessage", { chat_id: chatId, text: "خبر ثبت شد و در صف آماده‌سازی باقی ماند. ربات به‌صورت خودکار دوباره تلاش می‌کند و پس از آماده‌شدن پوستر همین‌جا می‌فرستد؛ نیازی به ارسال دوباره نیست." });
-    return json({ ok: true });
-  }
-
+  const optionKeyboard={inline_keyboard:[
+    [{text:"🇸🇦 ترجمه عربی به فارسی",callback_data:"processnews:"+itemId+":ar"}],
+    [{text:"🇬🇧 ترجمه انگلیسی به فارسی",callback_data:"processnews:"+itemId+":en"}],
+    [{text:"بدون ترجمه، فقط متن اصلی",callback_data:"processnews:"+itemId+":none"}]
+  ]};
+  await telegram("sendMessage",{chat_id:chatId,text:"زبان متن را برای آماده‌سازی نسخهٔ بازبینی انتخاب کنید:",reply_markup:optionKeyboard});
+  return json({ok:true});
   const { data: ready } = await db.from("news_items")
     .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,source_url,pub_date,created_at,graphic_image_url,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
     .eq("id", itemId).maybeSingle();
@@ -1220,7 +1430,9 @@ Deno.serve(async (req: Request) => {
     caption: safePreviewText,
     reply_markup: { inline_keyboard: (() => { const rows: any[] = [
       [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + itemId }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + itemId }],
+        [{ text: "🎨 ویرایش تصویر", callback_data: "edit:graphic:" + itemId }],
       [{ text: "✅ انتشار در کانال", callback_data: "publish:" + itemId }, { text: "🗑 رد خبر", callback_data: "reject:" + itemId }],
+        [{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + itemId }],
     ]; if (ready.graphic_quality_status === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]); return rows; })() },
   });
   if (!preview.response.ok || !preview.result.ok) {
