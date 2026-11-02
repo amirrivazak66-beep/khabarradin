@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
   // Optional rewrite: when no paid text API is configured, publish the original RSS text after human approval.
   const openAiKey = Deno.env.get("OPENAI_API_KEY");
   let rewriteApplied = false;
-  if (openAiKey && (title || summary)) {
+  if (openAiKey && (title || summary) && item.source_type !== "telegram") {
     try {
       const rewriteResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -152,30 +152,19 @@ Deno.serve(async (req: Request) => {
       rewriteApplied = true;
     }
   }
-  const stripSourceTagAndAdjacentEmoji = (value: string, handle: string) => {
-    const username = handle.replace(/^@/, "");
-    if (!/^[a-z0-9_]+$/i.test(username)) return value;
-    const emoji = "(?:\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E)?(?:\\u{1F3FB}-\\u{1F3FF})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E)?(?:\\u{1F3FB}-\\u{1F3FF})?)*|\\p{Regional_Indicator}{2})";
-    const tagPattern = new RegExp("(?:" + emoji + "[ \\t]*)*@" + username + "(?:[ \\t]*" + emoji + ")*", "giu");
-    return value.replace(tagPattern, "");
+  const stripLinksWithAdjacentEmoji = (value: string) => {
+    const emoji = String.raw`(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\u{1F3FB}-\u{1F3FF})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\u{1F3FB}-\u{1F3FF})?)*|\p{Regional_Indicator}{2})`;
+    const link = String.raw`(?:https?:\/\/|www\.)[^\s<>]+|(?:[\p{L}\p{N}-]+\.)+[a-z]{2,}(?:\/[^\s<>]*)?|@[A-Za-z0-9_]{5,}`;
+    const pattern = new RegExp(`(?:${emoji}[ \\t]*)*(?:${link})(?:[ \\t]*${emoji})*`, "giu");
+    return value.replace(pattern, "").replace(/[ \\t]+([,،؛:!?؟])/g, "$1").replace(/([,،؛:!?؟])[ \\t]+([,،؛:!?؟])/g, "$1").trim();
   };
-  const stripTelegramTrace = (value: string) => {
-    let cleaned = value
-      .replace(/https?:\/\/[^\s<>]+|www\.[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi, "")
-      .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s<>]*)?/gi, "")
-      .replace(/(^|\s)@[A-Za-z0-9_]{5,}/g, "$1");
-    const sourceHandle = String(item.source_name || "");
-    if (sourceHandle.startsWith("@")) cleaned = stripSourceTagAndAdjacentEmoji(cleaned, sourceHandle);
-    return cleaned
-      .split(/\r?\n/)
-      .filter((line: string) => !/^\s*(?:[🔗🌐📢📰]\s*)?(?:منبع(?:\s+خبر)?|لینک(?:\s+منبع)?|source|channel)\s*[:：-]/i.test(line))
-      .filter(Boolean)
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  };
+  const stripTelegramTrace = (value: string) => stripLinksWithAdjacentEmoji(value);
   if (item.source_type === "telegram") {
-    title = stripTelegramTrace(title);
+    if (item.telegram_caption_edited && String(item.rewritten_text || "").trim()) {
+      summary = String(item.rewritten_text).trim();
+    } else {
+      summary = String(item.original_summary || item.summary || "").trim();
+    }
     summary = stripTelegramTrace(summary);
   }
   const combinedForEmoji = (title + " " + summary + " " + category).toLowerCase();
@@ -217,7 +206,7 @@ Deno.serve(async (req: Request) => {
   };
   const sourceName = sourceAliases[sourceLower] || rawSource.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "") || "خبر";
   const escapeHtml = (value: string) => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\x27/g,"&#39;");
-  const rawFullStory = String(item.rewritten_text || item.original_summary || summary || "").trim();
+  const rawFullStory = String(item.source_type === "telegram" ? (item.telegram_caption_edited ? item.rewritten_text : (item.original_summary || item.summary)) : (item.rewritten_text || item.original_summary || summary || "")).trim();
   const fullStory = item.source_type === "telegram" ? stripTelegramTrace(rawFullStory) : rawFullStory;
   const dateLabel = (() => {
     if (!item.pub_date) return "";
