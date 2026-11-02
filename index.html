@@ -45,7 +45,7 @@
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important;transform:none!important;translate:none!important;scale:1!important}.js-motion .reveal{opacity:1!important}}
   
     .showcase-section{background:radial-gradient(ellipse at 85% 20%,#14345a 0,transparent 42%),#09192c}
-    .showcase-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:20px;align-items:start}
+    .showcase-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start}
     .showcase-card{min-width:0;border:1px solid #ffffff19;border-radius:23px;background:linear-gradient(145deg,#122944,#0c1d32);padding:17px;box-shadow:0 22px 55px #020b1866;transition:transform .3s,border-color .3s,box-shadow .3s}
     .showcase-card:hover{transform:translateY(-5px);border-color:#58e0d055;box-shadow:0 28px 68px #020b1877}
     .showcase-heading{display:flex;align-items:center;gap:12px;min-height:56px;margin-bottom:14px}
@@ -68,6 +68,26 @@
     .video-play{position:absolute;left:50%;top:50%;z-index:1;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:9px;white-space:nowrap;padding:12px 17px;border:1px solid #ffffff45;border-radius:999px;background:#071629d9;backdrop-filter:blur(12px);color:#fff;font-size:12px;font-weight:800;transition:transform .2s,background .2s}
     .video-play i{font-size:24px;color:var(--gold)}.video-preview:hover .video-play{transform:translate(-50%,-50%) scale(1.04);background:#0a2544ee}
     .video-duration{position:absolute;left:12px;bottom:12px;z-index:1;padding:5px 9px;border-radius:999px;background:#071629c9;color:#eaf2fc;font-size:10px}
+    .showcase-icon.menu{background:#f5c45118;color:var(--gold)}
+    .bot-menu-demo{display:flex;flex-direction:column;overflow:hidden;aspect-ratio:4/5;border:1px solid #ffffff1c;border-radius:15px;background:#e8f1e5;color:#18344a;box-shadow:inset 0 0 0 1px #ffffff80}
+    .bot-demo-header{display:flex;align-items:center;gap:9px;padding:11px 12px;background:#f8fbf6}
+    .bot-demo-avatar{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#58e0d0,#3187ef);color:#fff;font-weight:900}
+    .bot-demo-header>div{display:grid;line-height:1.35}.bot-demo-header strong{font-size:12px}.bot-demo-header small{font-size:10px;color:#75879a}
+    .bot-demo-online{margin-right:auto;color:#168860;font-size:10px}.bot-demo-online:before{content:"";display:inline-block;width:6px;height:6px;margin-left:5px;border-radius:50%;background:#35ba7a}
+    .bot-demo-chat{flex:1;min-height:76px;display:flex;flex-direction:column;justify-content:flex-end;gap:7px;padding:12px;background:radial-gradient(circle at 20% 30%,#d7e8d130 0 2px,transparent 3px),#dcebd6;background-size:24px 24px}
+    .bot-demo-date{align-self:center;padding:3px 8px;border-radius:999px;background:#45614b55;color:#fff;font-size:9px}
+    .bot-demo-message{align-self:flex-start;max-width:90%;padding:8px 10px;border-radius:12px 12px 12px 4px;background:#fff;font-size:10px;line-height:1.6;box-shadow:0 1px 3px #18344a14}
+    .bot-demo-message small{display:block;margin-top:3px;text-align:left;color:#9aabb7;font-size:8px}
+    .bot-demo-start{align-self:flex-start;display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:8px;background:#f8fbf6;font-size:9px;color:#718397}
+    .bot-demo-start b{color:#152b42;font-size:10px}
+    .bot-demo-keyboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:7px;background:#f3f5f7}
+    .bot-key{min-height:31px;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px 5px;border-radius:7px;color:#fff;text-align:center;font-size:9px;font-weight:800;line-height:1.25}
+    .bot-key.wide{grid-column:1/-1}
+    .bot-key.primary{background:#2795df}.bot-key.success{background:#43b56a}.bot-key.danger{background:#e05e68}
+    .bot-demo-composer{display:flex;align-items:center;gap:7px;padding:8px;background:#f8fbf6}
+    .bot-menu-pill{display:inline-flex;align-items:center;gap:5px;flex:none;padding:6px 10px;border-radius:999px;background:#3199dd;color:#fff;font-size:9px;font-weight:800}
+    .bot-demo-placeholder{flex:1;min-width:0;overflow:hidden;color:#91a0aa;font-size:9px;white-space:nowrap;text-overflow:ellipsis}
+    .bot-demo-clip{color:#8797a1;font-size:14px}
     .video-caption{display:flex;align-items:flex-start;gap:9px;margin-top:13px;padding:12px;border-radius:12px;background:#58e0d00c;color:#b8c9dc;font-size:12px;line-height:1.8}
     .video-caption i{color:var(--cyan);margin-top:4px;flex:none}
     .sample-link{display:inline-flex;align-items:center;gap:8px;color:#8eece0;font-size:12px;font-weight:800;margin:13px 3px 0}
@@ -145,12 +165,13 @@
           <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-copy"></i></div><h3>تشخیص خبر تکراری</h3><p>شباهت خبرهای تازه بررسی می‌شود تا محتوای تکراری پیش از ورود به صف دیده شود.</p></article>
           <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-shield-halved"></i></div><h3>خروجی آمادهٔ اینستاگرام</h3><p>فایل استاندارد استوری ۱۰۸۰×۱۹۲۰ و پست ۱۰۸۰×۱۳۵۰ با کپشن آماده می‌شود؛ انتشار اینستاگرام دستی است.</p></article>
           <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-clock-rotate-left"></i></div><h3>گزارش فعالیت و خطا</h3><p>رویدادهای مهم، خطاهای اخیر و تلاش مجدد از داخل ربات قابل مشاهده و پیگیری است.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-bars-progress"></i></div><h3>منوی ثابت و رنگی تلگرام</h3><p>دکمهٔ Menu و فرمان «♻️ شروع مجدد» همیشه در دسترس‌اند؛ میانبرهای ثبت خبر، صف، تاریخچه، حساب و پشتیبانی با رنگ‌های استاندارد تلگرام نمایش داده می‌شوند.</p></article>
         </div>
       </div>
     </section>
     <section class="section dark showcase-section" id="samples">
       <div class="wrap">
-        <div class="section-head"><div><span class="section-kicker">نمونهٔ واقعی خروجی</span><h2>پوستر خبر و ویدیوی کاوردار</h2></div><p class="section-desc">نمونهٔ پوستر طراحی‌شده و یک پست ویدیویی عمومی را ببینید؛ ویدیو در کانال به‌صورت ویدیوی واقعی همراه کاور گرافیکی و کپشن خبر منتشر می‌شود.</p></div>
+        <div class="section-head"><div><span class="section-kicker">نمونه‌های واقعی و نمای رابط</span><h2>پوستر، ویدیو و منوی ربات</h2></div><p class="section-desc">پوستر گرافیکی، نمونهٔ ویدیوی واقعی کانال و نمای دکمه‌های منوی ربات رادین را ببینید.</p></div>
         <div class="showcase-grid">
           <article class="showcase-card poster-card">
             <div class="showcase-heading"><span class="showcase-icon"><i class="fa-solid fa-image"></i></span><div><strong>پوستر گرافیکی خبر</strong><small>قالب رادین · تیتر هوشمند · آمادهٔ بازبینی</small></div><span class="showcase-label">نمونهٔ پوستر</span></div>
@@ -168,6 +189,23 @@
             </a>
             <div class="video-caption"><i class="fa-solid fa-closed-captioning"></i><span>این نمونه پیش از اصلاح کپشن منتشر شده؛ در انتشارهای جدید، متن خبرِ پاک‌سازی‌شده زیر ویدیو می‌آید و تگ مبدأ حذف می‌شود.</span></div>
             <a class="sample-link" href="https://t.me/radinnews/462790" target="_blank" rel="noopener">مشاهدهٔ پست در تلگرام <i class="fa-solid fa-arrow-up-left-from-square"></i></a>
+          </article>
+          <article class="showcase-card menu-card">
+            <div class="showcase-heading"><span class="showcase-icon menu"><i class="fa-solid fa-bars-progress"></i></span><div><strong>منوی ثابت ربات</strong><small>فرمان شروع مجدد · دسترسی سریع</small></div><span class="showcase-label live-sample">نمای نمونه</span></div>
+            <div class="bot-menu-demo" role="img" aria-label="نمای نمونهٔ منوی ثابت ربات خبر رادین با دکمه‌های رنگی تلگرام">
+              <div class="bot-demo-header"><span class="bot-demo-avatar">R</span><div><strong>radinnewsbot</strong><small>ربات خبر رادین</small></div><span class="bot-demo-online">فعال</span></div>
+              <div class="bot-demo-chat"><span class="bot-demo-date">ربات خبر رادین</span><div class="bot-demo-message">برای ثبت خبر، لینک یا محتوای فورواردی را بفرستید.<small>۱۰:۳۰</small></div><div class="bot-demo-start"><b>/start</b><span>♻️ شروع مجدد</span></div></div>
+              <div class="bot-demo-keyboard">
+                <span class="bot-key primary wide">📨 ثبت خبر</span>
+                <span class="bot-key success">🗓️ صف انتشار</span><span class="bot-key success">📚 تاریخچه</span>
+                <span class="bot-key primary">🤖 مصرف AI</span><span class="bot-key success">⚙️ تنظیمات</span>
+                <span class="bot-key primary">👤 حساب</span><span class="bot-key success">ℹ️ راهنما</span>
+                <span class="bot-key danger wide">💬 پشتیبانی</span>
+              </div>
+              <div class="bot-demo-composer"><span class="bot-menu-pill"><i class="fa-solid fa-bars"></i> Menu</span><span class="bot-demo-placeholder">پیام یا خبر را بفرستید…</span><i class="fa-solid fa-paperclip bot-demo-clip"></i></div>
+            </div>
+            <p class="showcase-note">چیدمان نمونه؛ رنگ‌ها با سبک‌های آمادهٔ آبی، سبز و قرمز تلگرام اعمال می‌شوند.</p>
+            <a class="sample-link" href="https://t.me/radinnewsbot" target="_blank" rel="noopener">بازکردن ربات رادین نیوز <i class="fa-solid fa-arrow-up-left-from-square"></i></a>
           </article>
         </div>
       </div>
