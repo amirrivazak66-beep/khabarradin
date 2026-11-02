@@ -285,8 +285,8 @@ Deno.serve(async (req: Request) => {
     if (settings.auto_publish !== true) return { ok: false, message: "ابتدا ارسال خودکار را روشن کنید؛ صف تا قبل از آن ارسال نمی‌شود." };
 
     const { data: candidates, error } = await db.from("news_items")
-      .select("id,title,rewritten_title,source_type,graphic_image_url,original_image_url")
-      .eq("published", false).eq("review_status", "pending").is("scheduled_at", null)
+      .select("id,title,rewritten_title,source_type,graphic_image_url,original_image_url,video_file_id")
+      .eq("published", false).eq("review_status", "pending").is("scheduled_at", null).is("video_file_id", null)
       .in("source_type", ["telegram", "website"])
       .not("graphic_image_url", "is", null).not("original_image_url", "is", null)
       .order("pub_date", { ascending: true }).limit(200);
@@ -577,7 +577,7 @@ Deno.serve(async (req: Request) => {
       let result: any = {}; try { result = await response.json(); } catch {}
       const success = response.ok && result.results?.some((row: any) => row.id === itemId && row.ok);
       const { data: ready } = await db.from("news_items")
-        .select("title,summary,rewritten_title,rewritten_text,graphic_image_url,telegram_preview_message_id,graphic_quality_status,graphic_quality_notes")
+        .select("title,summary,rewritten_title,rewritten_text,graphic_image_url,video_file_id,telegram_preview_message_id,graphic_quality_status,graphic_quality_notes")
         .eq("id", itemId).maybeSingle();
       if (!success || !ready?.graphic_image_url) {
         await telegram("sendMessage", { chat_id: chat, text: "بازتولید شروع شد، اما هنوز کامل نشده است؛ خبر در صف خودکار می‌ماند." });
@@ -592,9 +592,9 @@ Deno.serve(async (req: Request) => {
         [{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + itemId }],
       ];
       if (ready.graphic_quality_status === "review") keyboard.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]);
-      const edited = await telegram("editMessageMedia", { chat_id: chat, message_id: messageId, media: { type: "photo", media: ready.graphic_image_url, caption }, reply_markup: { inline_keyboard: keyboard } });
+      const edited = await telegram("editMessageMedia", { chat_id: chat, message_id: messageId, media: ready.video_file_id ? { type: "video", media: ready.video_file_id, cover: ready.graphic_image_url, caption } : { type: "photo", media: ready.graphic_image_url, caption }, reply_markup: { inline_keyboard: keyboard } });
       if (!edited.response.ok || !edited.result.ok) {
-        const sent = await telegram("sendPhoto", { chat_id: chat, photo: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } });
+        const sent = await telegram(ready.video_file_id ? "sendVideo" : "sendPhoto", ready.video_file_id ? { chat_id: chat, video: ready.video_file_id, cover: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } } : { chat_id: chat, photo: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } });
         if (sent.response.ok && sent.result.ok) await db.from("news_items").update({ telegram_preview_message_id: sent.result.result?.message_id || null }).eq("id", itemId);
       }
       await db.from("bot_activity").insert({ event_type: "graphic_regenerated", item_id: itemId, actor: "telegram:" + userId, details: { quality_status: ready.graphic_quality_status, score: result.results?.find((row: any) => row.id === itemId)?.graphic_quality_score ?? null } });
@@ -889,7 +889,7 @@ Deno.serve(async (req: Request) => {
         }
         const success = !!workerResponse?.ok && workerResult.results?.some((row: any) => row.id === editing.id && row.ok);
         const { data: ready } = await db.from("news_items")
-          .select("title,summary,rewritten_title,rewritten_text,graphic_image_url,telegram_preview_message_id,graphic_quality_status")
+          .select("title,summary,rewritten_title,rewritten_text,graphic_image_url,video_file_id,telegram_preview_message_id,graphic_quality_status")
           .eq("id", editing.id).maybeSingle();
         if (!success || !ready?.graphic_image_url) {
           if (editing.telegram_preview_message_id) {
@@ -904,16 +904,15 @@ Deno.serve(async (req: Request) => {
         if (previewMessageId) {
           const editedPhoto = await telegram("editMessageMedia", {
             chat_id: chatId, message_id: previewMessageId,
-            media: { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
+            media: ready.video_file_id ? { type: "video", media: ready.video_file_id, cover: ready.graphic_image_url, caption: previewCaption } : { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
             reply_markup: keyboard(editing.id, ready.graphic_quality_status),
           });
           previewUpdated = editedPhoto.response.ok && editedPhoto.result.ok;
         }
         if (!previewUpdated) {
-          const sent = await telegram("sendPhoto", {
-            chat_id: chatId, photo: ready.graphic_image_url, caption: previewCaption,
-            reply_markup: keyboard(editing.id, ready.graphic_quality_status),
-          });
+          const sent = await telegram(ready.video_file_id ? "sendVideo" : "sendPhoto", ready.video_file_id
+            ? { chat_id: chatId, video: ready.video_file_id, cover: ready.graphic_image_url, caption: previewCaption, reply_markup: keyboard(editing.id, ready.graphic_quality_status) }
+            : { chat_id: chatId, photo: ready.graphic_image_url, caption: previewCaption, reply_markup: keyboard(editing.id, ready.graphic_quality_status) });
           if (sent.response.ok && sent.result.ok) previewMessageId = sent.result.result?.message_id || previewMessageId;
           else console.error("Updated graphic preview could not be sent", sent.result?.description || "unknown");
         }
@@ -962,7 +961,7 @@ Deno.serve(async (req: Request) => {
       let workerResult: any = {}; try { workerResult = await workerResponse.json(); } catch {}
       const success = workerResponse.ok && workerResult.results?.some((row: any) => row.id === editing.id && row.ok);
       const { data: ready } = await db.from("news_items")
-        .select("title,summary,rewritten_title,rewritten_text,source_name,source_type,pub_date,graphic_image_url,telegram_preview_message_id,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
+        .select("title,summary,rewritten_title,rewritten_text,source_name,source_type,pub_date,graphic_image_url,video_file_id,telegram_preview_message_id,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
         .eq("id", editing.id).maybeSingle();
       if (!success || !ready?.graphic_image_url) {
         await telegram("sendMessage", { chat_id: chatId, text: "تیتر ذخیره شد؛ ساخت پوستر در صف خودکار باقی ماند و پس از آماده‌شدن ارسال می‌شود." });
@@ -973,7 +972,7 @@ Deno.serve(async (req: Request) => {
       if (ready.telegram_preview_message_id) {
         const editedPhoto = await telegram("editMessageMedia", {
           chat_id: chatId, message_id: ready.telegram_preview_message_id,
-          media: { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
+          media: ready.video_file_id ? { type: "video", media: ready.video_file_id, cover: ready.graphic_image_url, caption: previewCaption } : { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
           reply_markup: keyboard(editing.id, ready.graphic_quality_status),
         });
         updatedPreview = editedPhoto.response.ok && editedPhoto.result.ok;
@@ -1324,7 +1323,7 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
-  if (!imageUrl && !textOnlyForward) {
+  if (!imageUrl && !textOnlyForward && !videoMedia?.file_id) {
     await telegram("sendMessage", { chat_id: chatId, text: "برای این خبر تصویر پیدا نشد. لطفاً عکس را همراه خبر فوروارد کنید.", disable_web_page_preview: true });
     return json({ ok: true });
   }
