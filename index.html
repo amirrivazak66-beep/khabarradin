@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#071629">
-  <meta name="description" content="نیوزروم هوشمند؛ سامانه مدیریت، آماده‌سازی، طراحی و انتشار چندکاناله خبر با کنترل کامل تحریریه.">
+  <meta name="description" content="خبر را فوروارد کنید؛ هوش مصنوعی تیتر و متن را آماده می‌کند، پوستر یا کاور ویدیو می‌سازد و پس از پیش‌نمایش و تأیید در کانال منتشر می‌کند.">
   <title>نیوزروم هوشمند | سامانه مدیریت و انتشار خبر</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,6 +43,35 @@
     @media(max-width:640px){.wrap{width:min(100% - 30px,520px)}.nav{height:70px}.navlinks{display:none;position:absolute;top:69px;right:0;left:0;padding:20px 24px;background:#0b1c33;border-bottom:1px solid var(--line);flex-direction:column;align-items:stretch}.navlinks.open{display:flex}.nav-cta{display:none}.nav-login{padding:9px 12px;font-size:12px}.mobile-menu{display:block}.hero{min-height:auto;padding:123px 0 56px}.hero-grid{gap:0}h1{font-size:42px;letter-spacing:-1px}.hero-copy{font-size:15px}.hero-actions .button{width:100%}.trustline{gap:12px;flex-wrap:wrap}.visual{min-height:390px}.halo{width:300px;height:300px}.flow-card{padding:16px}.chip-a{right:0;top:5px}.chip-b{left:0;bottom:12px}.section{padding:68px 0}.workflow,.features,.plans{grid-template-columns:1fr}.step-card:not(:last-child):after{display:none}.control-panel{gap:25px}.queue-row{grid-template-columns:31px 1fr auto}.cta-inner{align-items:start;flex-direction:column}.cta h2{font-size:26px}.footer-inner{align-items:start;flex-direction:column}.footer-links{flex-wrap:wrap}}
     a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #f5c451;outline-offset:4px;border-radius:10px}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important;transform:none!important;translate:none!important;scale:1!important}.js-motion .reveal{opacity:1!important}}
+  
+    .showcase-section{background:radial-gradient(ellipse at 85% 20%,#14345a 0,transparent 42%),#09192c}
+    .showcase-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:20px;align-items:start}
+    .showcase-card{min-width:0;border:1px solid #ffffff19;border-radius:23px;background:linear-gradient(145deg,#122944,#0c1d32);padding:17px;box-shadow:0 22px 55px #020b1866;transition:transform .3s,border-color .3s,box-shadow .3s}
+    .showcase-card:hover{transform:translateY(-5px);border-color:#58e0d055;box-shadow:0 28px 68px #020b1877}
+    .showcase-heading{display:flex;align-items:center;gap:12px;min-height:56px;margin-bottom:14px}
+    .showcase-heading>div{min-width:0;display:grid;line-height:1.55}
+    .showcase-heading strong{font-size:14px;color:#f3f8ff}
+    .showcase-heading small{font-size:11px;color:#91a6bd}
+    .showcase-icon{width:43px;height:43px;flex:none;display:grid;place-items:center;border-radius:13px;background:#65a7ff1c;color:#8bc1ff;font-size:17px}
+    .showcase-icon.video{background:#58e0d019;color:var(--cyan)}
+    .showcase-label{margin-right:auto;white-space:nowrap;border:1px solid #f5c45133;border-radius:999px;padding:5px 9px;color:#f7d875;font-size:10px}
+    .showcase-label.live-sample{border-color:#58e0d033;color:#9bffe9}
+    .live-sample i{font-size:7px;margin-left:4px}
+    .poster-link{position:relative;display:block;overflow:hidden;aspect-ratio:4/5;border-radius:15px;background:#061426}
+    .poster-link img{display:block;width:100%;height:100%;object-fit:contain}
+    .poster-open{position:absolute;left:12px;bottom:12px;border:1px solid #ffffff34;border-radius:999px;padding:7px 11px;background:#071629c9;backdrop-filter:blur(12px);font-size:11px;color:#eff8ff;opacity:0;transform:translateY(6px);transition:.2s}
+    .poster-link:hover .poster-open,.poster-link:focus-visible .poster-open{opacity:1;transform:translateY(0)}
+    .showcase-note{margin:12px 3px 2px;color:#a7b9cc;font-size:12px}
+    .telegram-embed{min-height:440px;display:flex;justify-content:center;align-items:flex-start;overflow:hidden;border:1px solid #ffffff12;border-radius:15px;background:#f8f9fb;padding:9px}
+    .telegram-embed iframe{max-width:100%!important;border:0!important;border-radius:10px!important}
+    .telegram-embed noscript{padding:24px;color:#173251}
+    .video-caption{display:flex;align-items:flex-start;gap:9px;margin-top:13px;padding:12px;border-radius:12px;background:#58e0d00c;color:#b8c9dc;font-size:12px;line-height:1.8}
+    .video-caption i{color:var(--cyan);margin-top:4px;flex:none}
+    .sample-link{display:inline-flex;align-items:center;gap:8px;color:#8eece0;font-size:12px;font-weight:800;margin:13px 3px 0}
+    .sample-link:hover{color:#fff}
+    @media(max-width:900px){.showcase-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:640px){.showcase-grid{grid-template-columns:1fr}.showcase-card{padding:13px}.telegram-embed{min-height:350px}.showcase-heading{gap:9px}.showcase-label{font-size:9px;padding:5px 7px}}
+
   </style>
 </head>
 <body>
@@ -53,7 +82,7 @@
         <span>نیوزروم هوشمند<small>سامانه مدیریت و انتشار خبر</small></span>
       </a>
       <nav class="navlinks" id="navlinks">
-        <a href="#workflow">فرایند کار</a><a href="#features">قابلیت‌ها</a><a href="#plans">پلن‌های اشتراک</a><a href="#faq">پرسش‌های متداول</a>
+        <a href="#workflow">فرایند کار</a><a href="#features">قابلیت‌ها</a><a href="#samples">نمونه خروجی</a><a href="#plans">پلن‌های اشتراک</a><a href="#faq">پرسش‌های متداول</a>
       </nav>
       <a class="nav-login glass-link" href="admin.html"><i class="fa-solid fa-right-to-bracket"></i> ورود به پنل</a><a class="nav-cta" href="#plans">مشاهده پلن‌ها <i class="fa-solid fa-arrow-left"></i></a>
       <button class="mobile-menu" id="mobileMenu" aria-label="بازکردن منو"><i class="fa-solid fa-bars"></i></button>
@@ -65,22 +94,22 @@
         <div>
           <span class="eyebrow"><i class="fa-solid fa-sparkles"></i> اتاق خبر شما، یکپارچه و هوشمند</span>
           <h1>از دریافت خبر<br>تا <span>انتشار آماده</span></h1>
-          <p class="hero-copy">سامانه‌ای برای مدیریت جریان خبر در یک مسیر روشن: تحلیل و بازبینی متن، ترجمهٔ انتخابی، طراحی پوستر با درخواست شما، زمان‌بندی و انتشار در کانال‌ها.</p>
-          <div class="hero-actions"><a class="button" href="#workflow">آشنایی با فرایند <i class="fa-solid fa-arrow-left"></i></a><a class="button secondary glass-link" href="#plans"><i class="fa-solid fa-layer-group"></i> پلن‌های اشتراک</a></div>
-          <div class="trustline"><span><i class="fa-solid fa-user-check"></i> کنترل نهایی با تحریریه</span><span><i class="fa-solid fa-language"></i> پشتیبانی از چند زبان</span><span><i class="fa-solid fa-clock"></i> صف و زمان‌بندی</span></div>
+          <p class="hero-copy">خبر را از کانال‌های مختلف یا به‌صورت دستی فوروارد کنید؛ هوش مصنوعی تیتر و متن را آماده می‌کند، پوستر یا کاور ویدیو را با قالب رادین می‌سازد و پس از پیش‌نمایش و تأیید شما در کانال منتشر می‌کند.</p>
+          <div class="hero-actions"><a class="button" href="#samples">دیدن نمونهٔ گرافیک و ویدیو <i class="fa-solid fa-arrow-left"></i></a><a class="button secondary glass-link" href="#workflow"><i class="fa-solid fa-diagram-project"></i> آشنایی با فرایند</a></div>
+          <div class="trustline"><span><i class="fa-solid fa-user-check"></i> تأیید نهایی با تحریریه</span><span><i class="fa-solid fa-wand-magic-sparkles"></i> تیتر و طراحی با AI</span><span><i class="fa-solid fa-video"></i> ویدیوی واقعی همراه کاور</span></div>
         </div>
         <div class="visual" aria-label="نمونه داشبورد مدیریت خبر">
           <div class="halo"></div><div class="signal-art" aria-hidden="true"><svg viewBox="0 0 540 455" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="signalGlow" x1="70" y1="40" x2="450" y2="410" gradientUnits="userSpaceOnUse"><stop stop-color="#58E0D0"/><stop offset="1" stop-color="#65A7FF"/></linearGradient><linearGradient id="signalPanel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6DE9D8" stop-opacity=".27"/><stop offset="1" stop-color="#65A7FF" stop-opacity=".09"/></linearGradient></defs><ellipse class="signal-orbit" cx="270" cy="228" rx="224" ry="146" stroke="url(#signalGlow)"/><ellipse class="signal-orbit alt" cx="270" cy="228" rx="184" ry="202" transform="rotate(-28 270 228)"/><path class="signal-line" d="M24 290C98 278 113 205 173 204M362 111c57 7 92 36 126 82M373 328c53 1 86-21 132-52" stroke="url(#signalGlow)" stroke-width="1.5" opacity=".72"/><g class="signal-float"><rect x="26" y="123" width="92" height="64" rx="15" fill="url(#signalPanel)" stroke="#9AF4E7" stroke-opacity=".55"/><path d="M43 145h49M43 156h35M43 168h26" stroke="#DFFFF9" stroke-width="3" stroke-linecap="round" opacity=".9"/><circle cx="100" cy="143" r="5" fill="#F5C451"/></g><g class="signal-float delay"><rect x="413" y="228" width="91" height="67" rx="15" fill="url(#signalPanel)" stroke="#8DBEFF" stroke-opacity=".6"/><path d="M431 276v-15m15 15v-27m15 27v-36m15 36v-21" stroke="#88DDF4" stroke-width="6" stroke-linecap="round"/><path d="m430 250 14-8 14 2 16-14" stroke="#F5C451" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g><g class="signal-float"><circle cx="124" cy="339" r="26" fill="#0D2746" stroke="#58E0D0" stroke-opacity=".7"/><path d="m114 339 7 7 14-16" stroke="#8EF2DE" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g><circle class="signal-node" cx="151" cy="72" r="5" fill="#F5C451"/><circle class="signal-node delay" cx="458" cy="155" r="5" fill="#58E0D0"/><circle class="signal-node" cx="383" cy="376" r="4" fill="#65A7FF"/><circle class="signal-node delay" cx="51" cy="247" r="4" fill="#58E0D0"/></svg></div><div class="floating-chip chip-a"><i class="fa-brands fa-telegram"></i> ورودی خبر</div><div class="floating-chip chip-b"><i class="fa-solid fa-circle-check"></i> تأیید تحریریه</div>
           <div class="flow-card">
             <div class="flow-head"><span><i class="fa-solid fa-border-all"></i> نمای اتاق خبر</span><span class="live">در جریان</span></div>
-            <div class="news-sample"><div class="sample-photo"><i class="fa-solid fa-earth-asia"></i></div><div class="sample-copy"><b>خبر آمادهٔ بازبینی</b><small>متن اصلی · ترجمهٔ انتخابی · منبع قابل پیگیری</small></div></div>
+            <div class="news-sample"><div class="sample-photo"><i class="fa-solid fa-earth-asia"></i></div><div class="sample-copy"><b>خبر آمادهٔ بازبینی</b><small>تیتر AI · پوستر یا کاور ویدیو · کپشن کامل</small></div></div>
             <ol class="pipeline-mini" aria-label="نمایش نمونه مراحل گردش خبر">
               <li class="pipeline-node"><i class="fa-brands fa-telegram" aria-hidden="true"></i><span>دریافت</span></li>
               <li class="pipeline-node"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i><span>تحلیل</span></li>
               <li class="pipeline-node"><i class="fa-solid fa-image" aria-hidden="true"></i><span>طراحی</span></li>
               <li class="pipeline-node"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i><span>انتشار</span></li>
             </ol>
-            <div class="flow-steps"><div class="flow-step"><i class="fa-solid fa-magnifying-glass-chart"></i> تحلیل و بررسی محتوا <em>انجام شد</em></div><div class="flow-step"><i class="fa-solid fa-language"></i> ترجمهٔ انگلیسی / عربی <em>برای بازبینی</em></div><div class="flow-step"><i class="fa-solid fa-image"></i> طراحی پوستر <em>با درخواست شما</em></div><div class="flow-step"><i class="fa-solid fa-paper-plane"></i> زمان‌بندی و انتشار <em>با تأیید شما</em></div></div>
+            <div class="flow-steps"><div class="flow-step"><i class="fa-solid fa-magnifying-glass-chart"></i> تحلیل و بررسی محتوا <em>انجام شد</em></div><div class="flow-step"><i class="fa-solid fa-language"></i> تشخیص زبان خبر <em>ترجمه در صورت نیاز</em></div><div class="flow-step"><i class="fa-solid fa-image"></i> پوستر یا کاور ویدیو <em>پیش‌نمایش گرافیک</em></div><div class="flow-step"><i class="fa-solid fa-paper-plane"></i> زمان‌بندی و انتشار <em>با تأیید شما</em></div></div>
           </div>
         </div>
       </div>
@@ -89,43 +118,68 @@
       <div class="wrap">
         <div class="section-head"><div><span class="section-kicker">مسیر خبر، مرحله به مرحله</span><h2>از فوروارد تا انتشار؛ همه‌چیز در یک جریان</h2></div><p class="section-desc">هر خبر در اختیار تیم شما می‌ماند. متن را بررسی و ویرایش کنید، دربارهٔ پوستر تصمیم بگیرید و سپس زمان انتشار را مشخص کنید.</p></div>
         <div class="workflow">
-          <article class="step-card"><span class="step-number">مرحله ۰۱</span><div class="step-icon"><i class="fa-solid fa-share"></i></div><h3>دریافت خبر</h3><p>متن و تصویر را از تلگرام یا منابع خبری وارد کنید؛ منبع و اطلاعات خبر برای پیگیری ثبت می‌شود.</p></article>
-          <article class="step-card"><span class="step-number">مرحله ۰۲</span><div class="step-icon"><i class="fa-solid fa-language"></i></div><h3>تحلیل و ترجمه</h3><p>نسخهٔ فارسی از خبر عربی یا انگلیسی آماده می‌شود و پیش از طراحی یا انتشار برای بازبینی می‌آید.</p></article>
-          <article class="step-card"><span class="step-number">مرحله ۰۳</span><div class="step-icon"><i class="fa-solid fa-pen-to-square"></i></div><h3>بازبینی تحریریه</h3><p>تیتر و کپشن را ویرایش کنید؛ تکراری‌ها شناسایی می‌شوند و متن بدون تأیید شما منتشر نمی‌شود.</p></article>
-          <article class="step-card"><span class="step-number">مرحله ۰۴</span><div class="step-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><h3>پوستر اختیاری</h3><p>اگر تأیید کردید، پوستر متناسب با خبر ساخته و از نظر خوانایی، برش و ارتباط تصویری بررسی می‌شود.</p></article>
-          <article class="step-card"><span class="step-number">مرحله ۰۵</span><div class="step-icon"><i class="fa-solid fa-calendar-check"></i></div><h3>صف و زمان‌بندی</h3><p>خبرها را در صف مرتب کنید، زمان ارسال را تنظیم کنید و انتشار خودکار را هر زمان روشن یا خاموش کنید.</p></article>
-          <article class="step-card"><span class="step-number">مرحله ۰۶</span><div class="step-icon"><i class="fa-solid fa-bullhorn"></i></div><h3>انتشار چندکاناله</h3><p>انتشار در کانال با تأیید شما انجام می‌شود؛ بستهٔ پست و استوری برای انتشار دستی اینستاگرام آماده است.</p></article>
-          <article class="step-card"><span class="step-number">مرحله ۰۷</span><div class="step-icon"><i class="fa-solid fa-rotate-left"></i></div><h3>اصلاح و انتشار مجدد</h3><p>پس از انتشار هم می‌توانید خبر را برای ویرایش دوباره فعال کنید و نسخهٔ اصلاح‌شده را منتشر کنید.</p></article>
-          <article class="step-card"><span class="step-number">مرحله ۰۸</span><div class="step-icon"><i class="fa-solid fa-chart-simple"></i></div><h3>گزارش و کنترل</h3><p>فعالیت‌ها، خطاها و برآورد مصرف مدل‌های هوش مصنوعی در دسترس مدیر سامانه قرار می‌گیرد.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۱</span><div class="step-icon"><i class="fa-solid fa-share"></i></div><h3>دریافت خبر</h3><p>خبر را از کانال‌های مختلف فوروارد یا دستی همراه عکس و ویدیو برای ربات بفرستید.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۲</span><div class="step-icon"><i class="fa-solid fa-language"></i></div><h3>تشخیص زبان و تیتر AI</h3><p>خبر فارسی بی‌نیاز از ترجمه می‌ماند؛ برای متن غیرفارسی گزینهٔ ترجمه می‌آید و تیتر کامل و جذاب با هوش مصنوعی استخراج می‌شود.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۳</span><div class="step-icon"><i class="fa-solid fa-pen-to-square"></i></div><h3>بازبینی تحریریه</h3><p>متن خبر و پیش‌نمایش پوستر یا کاور ویدیو را در ربات ببینید، اصلاح کنید و بعد از تأیید منتشر کنید.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۴</span><div class="step-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><h3>طراحی گرافیک با AI</h3><p>تصویر خبر با قالب رادین بازطراحی می‌شود؛ ویدیو هم پخش‌پذیر می‌ماند و گرافیک به‌صورت کاور روی آن قرار می‌گیرد.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۵</span><div class="step-icon"><i class="fa-solid fa-calendar-check"></i></div><h3>کپشن خبر زیر ویدیو</h3><p>متن اصلیِ تمیزشده همراه ویدیو به کانال می‌رود؛ لینک و تگ منبع حذف می‌شود و امضای @radinnews باقی می‌ماند.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۶</span><div class="step-icon"><i class="fa-solid fa-bullhorn"></i></div><h3>انتشار و خروجی شبکه‌ها</h3><p>ویدیو با کاور و کپشن و پوستر با متن خبر در کانال منتشر می‌شوند؛ خروجی پست و استوری اینستاگرام آمادهٔ انتشار دستی است.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۷</span><div class="step-icon"><i class="fa-solid fa-rotate-left"></i></div><h3>پاک‌سازی خودکار منبع</h3><p>تگ کانال مبدأ، آدرس‌ها و ایموجی چسبیده به تگ منبع از خروجی پاک می‌شوند؛ ایموجی‌های متن حفظ می‌شوند.</p></article>
+          <article class="step-card"><span class="step-number">مرحله ۰۸</span><div class="step-icon"><i class="fa-solid fa-chart-simple"></i></div><h3>گزارش و کنترل</h3><p>صف، وضعیت طراحی و انتشار، خطاها و رویدادهای مهم در دسترس مدیر سامانه قرار می‌گیرد.</p></article>
         </div>
       </div>
     </section>
     <section class="section dark" id="features">
       <div class="wrap">
-        <div class="section-head"><div><span class="section-kicker">ابزارهای تحریریهٔ امروز</span><h2>قابلیت‌هایی برای کار واقعی خبر</h2></div><p class="section-desc">به‌جای جابه‌جایی بین ابزارهای متعدد، خبر را از دریافت تا خروجی در یک پنل مدیریت کنید.</p></div>
+        <div class="section-head"><div><span class="section-kicker">ابزارهای تحریریهٔ امروز</span><h2>قابلیت‌هایی برای کار واقعی خبر</h2></div><p class="section-desc">از فوروارد خبر تا طراحی هوشمند، پیش‌نمایش و انتشار همراه کپشن؛ همه در یک جریان قابل بازبینی.</p></div>
         <div class="features">
-          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-language"></i></div><h3>ترجمه با بازبینی انسانی</h3><p>ترجمهٔ عربی و انگلیسی به فارسی پیش از تولید پوستر نمایش داده می‌شود؛ کاربر تصمیم می‌گیرد متن تنها منتشر شود یا پوستر هم ساخته شود.</p></article>
-          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-photo-film"></i></div><h3>پوستر متناسب با خبر</h3><p>قالب بصری یکپارچه، تصویر مرتبط، تیتر خوانا و کنترل کیفیت خودکار برای خروجی شبکه‌های اجتماعی.</p></article>
-          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-pen-ruler"></i></div><h3>ویرایش مستقیم</h3><p>تیتر و کپشن را از ربات ویرایش کنید؛ متن اصلی خبر هنگام انتشار بی‌دلیل بازنویسی نمی‌شود.</p></article>
-          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-list-check"></i></div><h3>صف قابل مدیریت</h3><p>ترتیب و زمان ارسال خبرها، سقف صف و روشن یا خاموش‌کردن ارسال خودکار را کنترل کنید.</p></article>
-          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-link-slash"></i></div><h3>پاک‌سازی لینک در کپشن</h3><p>لینک‌ها و تگ‌های منبع از کپشن کانال حذف و تگ اختصاصی کانال در انتها درج می‌شود؛ متن خبر حفظ می‌شود.</p></article>
-          <article class="feature-card"><div class="feature-icon"><i class="fa-brands fa-instagram"></i></div><h3>بستهٔ آمادهٔ اینستاگرام</h3><p>خروجی پست ۴:۵، استوری ۹:۱۶ و کپشن آماده؛ انتشار اینستاگرام در اختیار کاربر می‌ماند.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-language"></i></div><h3>تشخیص زبان و ترجمهٔ هدفمند</h3><p>اگر کپشن فارسی باشد گزینهٔ ترجمه نمایش داده نمی‌شود؛ برای متن غیرفارسی، انتخاب ترجمه پیش از طراحی و انتشار در دسترس است.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-photo-film"></i></div><h3>طراحی پوستر با Gemini</h3><p>هوش مصنوعی تیتر کامل خبر را استخراج می‌کند و تصویر را در قالب گرافیکی رادین بازطراحی می‌کند؛ تیتر پیش از انتشار بازبینی می‌شود.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-pen-ruler"></i></div><h3>پیش‌نمایش و اصلاح</h3><p>نمونهٔ گرافیک پیش از انتشار در ربات نمایش داده می‌شود؛ درخواست اصلاح را می‌فرستید، دوباره می‌بینید و تأیید می‌کنید.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-list-check"></i></div><h3>ویدیو با کاور گرافیکی</h3><p>خود فایل ویدیو به کانال می‌رود؛ طراحی خبر کاور آن است و متن خبر هم به کپشن ویدیو اضافه می‌شود.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-link-slash"></i></div><h3>انتشار بدون ردپای منبع</h3><p>نشانی‌ها و تگ‌های کانال مبدأ از کپشن پاک می‌شوند؛ امضای کانال رادین حفظ می‌شود و متن خبر حذف نمی‌شود.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-list-check"></i></div><h3>صف قابل مدیریت</h3><p>خبرهای آماده، ترتیب انتشار و وضعیت هر مرحله را در جریان کار ربات پیگیری کنید.</p></article>
           <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-copy"></i></div><h3>تشخیص خبر تکراری</h3><p>شباهت خبرهای تازه بررسی می‌شود تا محتوای تکراری پیش از ورود به صف دیده شود.</p></article>
-          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-shield-halved"></i></div><h3>ردیابی منبع و کیفیت</h3><p>نشانه‌های منبع، زمان دریافت و وضعیت بررسی پوستر برای تصمیم تحریریه ثبت می‌شوند.</p></article>
+          <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-shield-halved"></i></div><h3>خروجی آمادهٔ اینستاگرام</h3><p>فایل استاندارد استوری ۱۰۸۰×۱۹۲۰ و پست ۱۰۸۰×۱۳۵۰ با کپشن آماده می‌شود؛ انتشار اینستاگرام دستی است.</p></article>
           <article class="feature-card"><div class="feature-icon"><i class="fa-solid fa-clock-rotate-left"></i></div><h3>گزارش فعالیت و خطا</h3><p>رویدادهای مهم، خطاهای اخیر و تلاش مجدد از داخل ربات قابل مشاهده و پیگیری است.</p></article>
         </div>
       </div>
     </section>
+    <section class="section dark showcase-section" id="samples">
+      <div class="wrap">
+        <div class="section-head"><div><span class="section-kicker">نمونهٔ واقعی خروجی</span><h2>پوستر خبر و ویدیوی کاوردار</h2></div><p class="section-desc">نمونهٔ پوستر طراحی‌شده و یک پست ویدیویی عمومی را ببینید؛ ویدیو در کانال به‌صورت ویدیوی واقعی همراه کاور گرافیکی و کپشن خبر منتشر می‌شود.</p></div>
+        <div class="showcase-grid">
+          <article class="showcase-card poster-card">
+            <div class="showcase-heading"><span class="showcase-icon"><i class="fa-solid fa-image"></i></span><div><strong>پوستر گرافیکی خبر</strong><small>قالب رادین · تیتر هوشمند · آمادهٔ بازبینی</small></div><span class="showcase-label">نمونهٔ پوستر</span></div>
+            <a class="poster-link" href="https://gtbrkufbsllbosdyogfx.supabase.co/storage/v1/object/public/radin-graphics/news/1284c914-3728-41f0-be1c-8f8dff759328-1793647240833.png" target="_blank" rel="noopener" aria-label="نمایش تصویر نمونهٔ پوستر خبر">
+              <img src="https://gtbrkufbsllbosdyogfx.supabase.co/storage/v1/object/public/radin-graphics/news/1284c914-3728-41f0-be1c-8f8dff759328-1793647240833.png" alt="نمونهٔ پوستر خبری با قالب گرافیکی رادین" loading="lazy">
+              <span class="poster-open"><i class="fa-solid fa-up-right-from-square"></i> دیدن اندازهٔ کامل</span>
+            </a>
+            <p class="showcase-note">پوستر قبل از انتشار به‌عنوان پیش‌نمایش برای بازبینی در ربات نمایش داده می‌شود.</p>
+          </article>
+          <article class="showcase-card video-card">
+            <div class="showcase-heading"><span class="showcase-icon video"><i class="fa-solid fa-circle-play"></i></span><div><strong>نمونهٔ پست ویدیویی</strong><small>ویدیوی قابل‌پخش · کاور گرافیکی · کپشن خبر</small></div><span class="showcase-label live-sample"><i class="fa-solid fa-circle"></i> پخش در کانال</span></div>
+            <div class="telegram-embed">
+              <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-post="radinnews/462790" data-width="100%" data-dark="1"></script>
+              <noscript><a href="https://t.me/radinnews/462790" target="_blank" rel="noopener">بازکردن نمونهٔ ویدیو در کانال رادین نیوز</a></noscript>
+            </div>
+            <div class="video-caption"><i class="fa-solid fa-closed-captioning"></i><span>در نسخهٔ نهایی، متن خبر پاک‌سازی‌شده زیر ویدیو می‌آید؛ نشانی و تگ کانال مبدأ حذف می‌شود.</span></div>
+            <a class="sample-link" href="https://t.me/radinnews/462790" target="_blank" rel="noopener">مشاهدهٔ پست در تلگرام <i class="fa-solid fa-arrow-up-left-from-square"></i></a>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section" style="background:#0b1e34" id="control">
       <div class="wrap control-panel">
         <div class="control-copy"><span class="section-kicker">دید روشن از عملیات</span><h2>مدیریت صف، کیفیت و هزینه در یک نگاه</h2><p class="section-desc">مدیر هر تیم، وضعیت پردازش و انتشار را می‌بیند و برای اقدام بعدی تصمیم می‌گیرد.</p>
-          <ul><li><i class="fa-solid fa-check"></i><span>صف خبرهای آماده و زمان انتشار بعدی</span></li><li><i class="fa-solid fa-check"></i><span>وضعیت پوستر و دلیل نیاز به بازبینی</span></li><li><i class="fa-solid fa-check"></i><span>گزارش مصرف و برآورد هزینهٔ AI</span></li><li><i class="fa-solid fa-check"></i><span>ثبت فعالیت‌ها و خطاهای اجرایی</span></li></ul>
+          <ul><li><i class="fa-solid fa-check"></i><span>خبرهای آماده و زمان‌بندی انتشار بعدی</span></li><li><i class="fa-solid fa-check"></i><span>پیش‌نمایش پوستر یا کاور و وضعیت بازبینی</span></li><li><i class="fa-solid fa-check"></i><span>گزارش مصرف و برآورد هزینهٔ AI</span></li><li><i class="fa-solid fa-check"></i><span>ثبت فعالیت‌ها و خطاهای اجرایی</span></li></ul>
         </div>
         <div class="mock-panel" aria-label="نمونه نمای صف خبر"><div class="mock-top"><strong>صف انتشار</strong><span>نمای نمونه</span></div>
-          <div class="queue-row"><span class="queue-icon"><i class="fa-solid fa-language"></i></span><div><b>ترجمه برای بازبینی</b><small>عربی به فارسی · هنوز منتشر نشده</small></div><span class="queue-badge">نیازمند تأیید</span></div>
-          <div class="queue-row"><span class="queue-icon"><i class="fa-solid fa-image"></i></span><div><b>در انتظار درخواست پوستر</b><small>انتخاب خروجی با کاربر</small></div><span class="queue-badge">آماده اقدام</span></div>
-          <div class="queue-row"><span class="queue-icon"><i class="fa-solid fa-calendar"></i></span><div><b>خبر زمان‌بندی‌شده</b><small>صف خودکار فعال</small></div><span class="queue-badge ok">در صف</span></div>
-          <div class="usage"><span><i class="fa-solid fa-coins"></i> برآورد مصرف دوره</span><strong>گزارش شفاف و قابل پیگیری</strong></div>
+          <div class="queue-row"><span class="queue-icon"><i class="fa-solid fa-language"></i></span><div><b>تشخیص زبان خبر</b><small>ترجمه فقط برای کپشن غیرفارسی</small></div><span class="queue-badge">بازبینی</span></div>
+          <div class="queue-row"><span class="queue-icon"><i class="fa-solid fa-image"></i></span><div><b>کاور ویدیو برای تأیید</b><small>پوستر گرافیکی · ویدیو پخش‌پذیر</small></div><span class="queue-badge">پیش‌نمایش</span></div>
+          <div class="queue-row"><span class="queue-icon"><i class="fa-solid fa-video"></i></span><div><b>ویدیو با کپشن خبر</b><small>متن کامل زیر ویدیو · بدون لینک منبع</small></div><span class="queue-badge ok">آمادهٔ تأیید</span></div>
+          <div class="usage"><span><i class="fa-solid fa-paper-plane"></i> مقصد انتشار</span><strong>کانال رادین · پس از تأیید مدیر</strong></div>
         </div>
       </div>
     </section>
@@ -142,9 +196,10 @@
     </section>
     <section class="cta" id="contact"><div class="wrap cta-inner"><div><h2>نیوزروم خودتان را بسازید</h2><p>این سامانه برای استفادهٔ رسانه‌ها و تیم‌های خبری طراحی شده و می‌تواند برای هر برند، گردش‌کار و پلن اشتراک تنظیم شود.</p></div><a class="button" href="#plans">بررسی پلن‌های قابل تنظیم <i class="fa-solid fa-arrow-left"></i></a></div></section>
     <section class="section light" id="faq"><div class="wrap"><div class="section-head"><div><span class="section-kicker">پاسخ پرسش‌های رایج</span><h2>شفافیت در جریان کار</h2></div></div><div class="faq">
-      <details><summary>آیا پوستر بلافاصله بعد از ترجمه ساخته می‌شود؟</summary><p>خیر. ابتدا متن برای بازبینی ارسال می‌شود. طراحی پوستر فقط پس از درخواست کاربر انجام می‌شود.</p></details>
+      <details><summary>آیا برای خبر فارسی گزینهٔ ترجمه نمایش داده می‌شود؟</summary><p>خیر. زبان کپشن تشخیص داده می‌شود؛ گزینه‌های ترجمه برای کپشن غیرفارسی نمایش داده می‌شوند.</p></details>
       <details><summary>آیا انتشار خودکار اجباری است؟</summary><p>خیر. کنترل انتشار در اختیار تحریریه است؛ ارسال خودکار صف نیز از تنظیمات قابل روشن یا خاموش‌کردن است.</p></details>
-      <details><summary>آیا پست اینستاگرام خودکار منتشر می‌شود؟</summary><p>خیر. سامانه فایل پست، استوری و کپشن را آماده می‌کند و انتشار اینستاگرام دستی انجام می‌شود.</p></details>
+      <details><summary>ویدیو و کپشن آن چگونه منتشر می‌شوند؟</summary><p>خود ویدیو پخش‌پذیر می‌ماند، گرافیک خبر به‌عنوان کاور قرار می‌گیرد و متن خبرِ پاک‌سازی‌شده زیر ویدیو منتشر می‌شود.</p></details>
+      <details><summary>آیا پست اینستاگرام خودکار منتشر می‌شود؟</summary><p>خیر. سامانه فایل پست ۴:۵، استوری ۹:۱۶ و کپشن را آماده می‌کند و انتشار اینستاگرام دستی انجام می‌شود.</p></details>
       <details><summary>آیا می‌توان چند رسانه را روی سامانه داشت؟</summary><p>ساختار پلن‌های اشتراک برای تعریف رسانه‌ها و ظرفیت‌های جداگانه در نظر گرفته شده است؛ فعال‌سازی عمومی و پرداخت آنلاین نیاز به پیکربندی حساب و سامانهٔ اشتراک دارد.</p></details>
     </div></div></section>
   </main>
@@ -156,7 +211,7 @@
     const reduceMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if(!reduceMotion && "IntersectionObserver" in window){
       document.body.classList.add("js-motion");
-      document.querySelectorAll(".step-card,.feature-card,.plan,.mock-panel").forEach((el,i)=>{el.classList.add("reveal");el.style.transitionDelay=(i%4)*65+"ms";});
+      document.querySelectorAll(".step-card,.feature-card,.plan,.mock-panel,.showcase-card").forEach((el,i)=>{el.classList.add("reveal");el.style.transitionDelay=(i%4)*65+"ms";});
       const revealObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add("is-visible");revealObserver.unobserve(entry.target);}}),{threshold:.12});
       document.querySelectorAll(".reveal").forEach(el=>revealObserver.observe(el));
       const card=document.querySelector(".flow-card"),visual=document.querySelector(".visual");
