@@ -44,9 +44,12 @@ Deno.serve(async (req: Request) => {
     try { result = await response.json(); } catch {}
     return { response, result };
   };
-  const mainMenuReplyMarkup = (isAdmin: boolean) => {
+  const mainMenuReplyMarkup = (isAdmin: boolean, trialActive = false) => {
+    const canSubmit = isAdmin || trialActive;
     const keyboard: any[][] = [
-      [{ text: "📨 ثبت خبر", style: "primary" }],
+      [canSubmit
+        ? { text: "📨 ثبت خبر", style: "primary" }
+        : { text: "🔐 ثبت‌نام و شروع آزمایشی", style: "primary" }],
     ];
     if (isAdmin) {
       keyboard.push(
@@ -62,6 +65,59 @@ Deno.serve(async (req: Request) => {
   };
   const answerCallback = async (id: string, text?: string) => {
     await telegram("answerCallbackQuery", { callback_query_id: id, text: text || "", show_alert: Boolean(text) });
+  };
+  const getTrialAccount = async (userId: string) => {
+    if (!/^\d+$/.test(userId)) return null;
+    const { data, error } = await db.from("telegram_trial_accounts")
+      .select("telegram_user_id,chat_id,first_name,last_name,username,registration_source,consent_at,phone_verified_at,trial_started_at,trial_expires_at")
+      .eq("telegram_user_id", userId).maybeSingle();
+    if (error) {
+      console.error("Telegram trial account lookup failed", error.message);
+      return null;
+    }
+    return data;
+  };
+  const trialIsActive = (account: any, chatId?: number | string) =>
+    Boolean(account?.phone_verified_at && account?.trial_expires_at &&
+      Date.parse(String(account.trial_expires_at)) > Date.now() &&
+      (chatId === undefined || String(account.chat_id) === String(chatId)));
+  const trialExpiryLabel = (expiresAt: string) => new Intl.DateTimeFormat("fa-IR", {
+    dateStyle: "full", timeStyle: "short", timeZone: "Asia/Tehran",
+  }).format(new Date(expiresAt));
+  const sendTrialConsent = async (chatId: number | string, source: "site" | "telegram") => {
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: "برای فعال‌سازی یک روز استفادهٔ آزمایشی، نام نمایشی تلگرام و شماره‌ای را که با دکمهٔ تلگرام به اشتراک می‌گذارید ثبت می‌کنیم. شمارهٔ خام ذخیره نمی‌شود؛ فقط اثر انگشت رمزنگاری‌شدهٔ آن برای جلوگیری از فعال‌سازی تکراری نگه داشته می‌شود. دورهٔ ۲۴ساعته پس از تأیید شماره آغاز می‌شود. با ادامه، با این ثبت اطلاعات موافقت می‌کنید.",
+      reply_markup: { inline_keyboard: [[{ text: "✅ موافقم و ادامه می‌دهم", callback_data: "register:consent:" + source }]] },
+      disable_web_page_preview: true,
+    });
+  };
+  const sendTrialContactRequest = async (chatId: number | string) => {
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: "برای احراز هویت و فعال‌کردن دورهٔ یک‌روزه، دکمهٔ زیر را بزنید تا شمارهٔ خودتان را از طریق تلگرام تأیید کنید.",
+      reply_markup: {
+        keyboard: [[{ text: "📱 تأیید شماره و فعال‌سازی آزمایشی", request_contact: true }]],
+        resize_keyboard: true, one_time_keyboard: true, input_field_placeholder: "شماره را با دکمهٔ تلگرام تأیید کنید",
+      },
+    });
+  };
+  const phoneFingerprint = async (phone: string) => {
+    const key = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(serviceKey), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(phone));
+    return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  };
+  const previewKeyboard = (itemId: string, qualityStatus?: string, canPublish = true) => {
+    const rows: any[] = [
+      [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + itemId }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + itemId }],
+      [{ text: "🎨 ویرایش تصویر", callback_data: "edit:graphic:" + itemId }],
+    ];
+    if (canPublish) rows.push([{ text: "✅ انتشار در کانال", callback_data: "publish:" + itemId }, { text: "🗑 رد خبر", callback_data: "reject:" + itemId }]);
+    rows.push([{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + itemId }]);
+    if (qualityStatus === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]);
+    return { inline_keyboard: rows };
   };
   const getBotQueueCounts = async () => {
     const base = () => db.from("news_items").select("id", { count: "exact", head: true })
@@ -349,9 +405,65 @@ Deno.serve(async (req: Request) => {
   if (callback) {
     const userId = String(callback.from?.id ?? "");
     const data = String(callback.data ?? "");
-    if (!adminIds.includes(userId)) {
-      await answerCallback(String(callback.id), "این عملیات فقط برای مدیر ربات در دسترس است.");
+    const consentMatch = data.match(/^register:consent:(site|telegram)$/);
+    if (consentMatch) {
+      const chat = callback.message?.chat;
+      const chatId = chat?.id;
+      if (adminIds.includes(userId)) {
+        await answerCallback(String(callback.id), "حساب مدیر نیازی به ثبت‌نام آزمایشی ندارد.");
+        return json({ ok: true });
+      }
+      if (!chatId || chat?.type !== "private" || String(chatId) !== userId) {
+        await answerCallback(String(callback.id), "ثبت‌نام فقط در گفت‌وگوی خصوصی با ربات انجام می‌شود.");
+        return json({ ok: true });
+      }
+      const existingAccount = await getTrialAccount(userId);
+      if (existingAccount?.phone_verified_at) {
+        await answerCallback(String(callback.id), "برای این حساب قبلاً دورهٔ آزمایشی فعال شده است.");
+        const status = trialIsActive(existingAccount, chatId)
+          ? "⏱ دورهٔ آزمایشی شما فعال است و تا " + trialExpiryLabel(String(existingAccount.trial_expires_at)) + " ادامه دارد."
+          : "⏳ دورهٔ آزمایشی این حساب قبلاً استفاده شده و امکان فعال‌سازی دوباره ندارد.";
+        await telegram("sendMessage", { chat_id: chatId, text: status });
+        return json({ ok: true });
+      }
+      const registration = {
+        telegram_user_id: Number(userId), chat_id: Number(chatId),
+        first_name: String(callback.from?.first_name || "").slice(0, 128) || null,
+        last_name: String(callback.from?.last_name || "").slice(0, 128) || null,
+        username: String(callback.from?.username || "").slice(0, 64) || null,
+        registration_source: consentMatch[1],
+        consent_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      };
+      const saveResult = existingAccount
+        ? await db.from("telegram_trial_accounts").update(registration)
+            .eq("telegram_user_id", Number(userId)).is("phone_verified_at", null)
+        : await db.from("telegram_trial_accounts").insert(registration);
+      if (saveResult.error) {
+        console.error("Telegram trial consent could not be stored", saveResult.error.message);
+        await answerCallback(String(callback.id), "ثبت موافقت انجام نشد؛ چند لحظه بعد دوباره تلاش کنید.");
+        return json({ ok: true });
+      }
+      await answerCallback(String(callback.id), "موافقت ثبت شد.");
+      await sendTrialContactRequest(chatId);
       return json({ ok: true });
+    }
+    const isAdminCallback = adminIds.includes(userId);
+    const callbackAccount = isAdminCallback ? null : await getTrialAccount(userId);
+    const callbackTrialActive = trialIsActive(callbackAccount, callback.message?.chat?.id);
+    if (!isAdminCallback) {
+      const chat = callback.message?.chat;
+      const itemMatch = data.match(/^(?:processnews:([0-9a-f-]{36}):(ar|en|none)|designposter:([0-9a-f-]{36})|insta:export:([0-9a-f-]{36})|regenerate:([0-9a-f-]{36})|edit:(?:headline|caption|graphic):([0-9a-f-]{36}))$/i);
+      const itemId = itemMatch?.slice(1).find(Boolean);
+      if (!callbackTrialActive || chat?.type !== "private" || String(chat?.id || "") !== userId || !itemId) {
+        await answerCallback(String(callback.id), "این عملیات فقط برای کاربر ثبت‌نام‌شده و در دورهٔ آزمایشی فعال است.");
+        return json({ ok: true });
+      }
+      const { data: ownedItem, error: ownershipError } = await db.from("news_items")
+        .select("id").eq("id", itemId).eq("telegram_chat_id", Number(chat.id)).maybeSingle();
+      if (ownershipError || !ownedItem) {
+        await answerCallback(String(callback.id), "این خبر به حساب شما تعلق ندارد.");
+        return json({ ok: true });
+      }
     }
     const processChoice=data.match(/^processnews:([0-9a-f-]{36}):(ar|en|none)$/i);
     if(processChoice){
@@ -601,13 +713,7 @@ Deno.serve(async (req: Request) => {
       }
       const note = ready.graphic_quality_status === "review" ? "\n\n⚠️ بررسی کیفیت: " + String(ready.graphic_quality_notes || "پوستر نیاز به بازبینی دارد.").slice(0, 180) : "";
       const caption = ("پیش‌نمایش خبر — هنوز منتشر نشده\n" + String(ready.rewritten_title || ready.title || "") + (ready.rewritten_text ? "\n\n" + ready.rewritten_text : ready.summary ? "\n\n" + ready.summary : "") + note).slice(0, 1024);
-      const keyboard: any[] = [
-        [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + itemId }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + itemId }],
-        [{ text: "🎨 ویرایش تصویر", callback_data: "edit:graphic:" + itemId }],
-        [{ text: "✅ انتشار در کانال", callback_data: "publish:" + itemId }, { text: "🗑 رد خبر", callback_data: "reject:" + itemId }],
-        [{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + itemId }],
-      ];
-      if (ready.graphic_quality_status === "review") keyboard.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]);
+      const keyboard = previewKeyboard(itemId, ready.graphic_quality_status, isAdminCallback);
       const edited = await telegram("editMessageMedia", { chat_id: chat, message_id: messageId, media: ready.video_file_id ? { type: "video", media: ready.video_file_id, cover: ready.graphic_image_url, caption } : { type: "photo", media: ready.graphic_image_url, caption }, reply_markup: { inline_keyboard: keyboard } });
       if (!edited.response.ok || !edited.result.ok) {
         const sent = await telegram(ready.video_file_id ? "sendVideo" : "sendPhoto", ready.video_file_id ? { chat_id: chat, video: ready.video_file_id, cover: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } } : { chat_id: chat, photo: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } });
@@ -826,11 +932,82 @@ Deno.serve(async (req: Request) => {
   const chatId = message.chat.id;
   const userId = String(message.from?.id ?? "");
   const isAdmin = adminIds.includes(userId);
+  const trialAccount = isAdmin ? null : await getTrialAccount(userId);
+  const trialActive = isAdmin || trialIsActive(trialAccount, chatId);
   const messageText = String(message.text ?? message.caption ?? "").trim();
   const videoMedia = message.video || null;
   const command = messageText.split(/\s+/, 1)[0].split("@", 1)[0];
 
-  if (message.reply_to_message?.message_id && messageText && isAdmin) {
+  if (message.contact) {
+    if (isAdmin) {
+      await telegram("sendMessage", { chat_id: chatId, text: "حساب مدیر از قبل دسترسی کامل دارد.", reply_markup: { remove_keyboard: true } });
+      return json({ ok: true });
+    }
+    if (message.chat.type !== "private" || String(chatId) !== userId) {
+      await telegram("sendMessage", { chat_id: chatId, text: "تأیید شماره فقط در گفت‌وگوی خصوصی با ربات انجام می‌شود." });
+      return json({ ok: true });
+    }
+    if (String(message.contact.user_id ?? "") !== userId) {
+      await telegram("sendMessage", { chat_id: chatId, text: "لطفاً فقط شمارهٔ متعلق به همین حساب تلگرام را با دکمهٔ تأیید شماره ارسال کنید." });
+      return json({ ok: true });
+    }
+    if (!trialAccount?.consent_at) {
+      await sendTrialConsent(chatId, "telegram");
+      return json({ ok: true });
+    }
+    if (trialAccount.phone_verified_at) {
+      const status = trialIsActive(trialAccount, chatId)
+        ? "✅ حساب شما قبلاً تأیید شده است؛ دوره تا " + trialExpiryLabel(String(trialAccount.trial_expires_at)) + " فعال است."
+        : "⏳ این حساب قبلاً دورهٔ آزمایشی خود را استفاده کرده است و دورهٔ دوم فعال نمی‌شود.";
+      await telegram("sendMessage", { chat_id: chatId, text: status, reply_markup: { remove_keyboard: true } });
+      return json({ ok: true });
+    }
+    let normalizedPhone = String(message.contact.phone_number || "").replace(/[^0-9]/g, "");
+    if (normalizedPhone.startsWith("00")) normalizedPhone = normalizedPhone.slice(2);
+    if (normalizedPhone.length < 8 || normalizedPhone.length > 15) {
+      await telegram("sendMessage", { chat_id: chatId, text: "شمارهٔ دریافت‌شده معتبر نیست. دوباره با دکمهٔ تلگرام تأیید کنید." });
+      return json({ ok: true });
+    }
+    const fingerprint = await phoneFingerprint(normalizedPhone);
+    const { data: phoneOwner, error: phoneLookupError } = await db.from("telegram_trial_accounts")
+      .select("telegram_user_id").eq("phone_fingerprint", fingerprint).maybeSingle();
+    if (phoneLookupError) {
+      console.error("Telegram phone uniqueness lookup failed", phoneLookupError.message);
+      await telegram("sendMessage", { chat_id: chatId, text: "بررسی شماره انجام نشد؛ چند لحظه بعد دوباره تلاش کنید." });
+      return json({ ok: true });
+    }
+    if (phoneOwner && String(phoneOwner.telegram_user_id) !== userId) {
+      await telegram("sendMessage", { chat_id: chatId, text: "این شماره قبلاً برای فعال‌سازی یک دورهٔ آزمایشی استفاده شده است. برای بررسی بیشتر با پشتیبانی تماس بگیرید." });
+      return json({ ok: true });
+    }
+    const startedAt = new Date();
+    const expiresAt = new Date(startedAt.getTime() + 24 * 60 * 60 * 1000);
+    const { data: activated, error: activationError } = await db.from("telegram_trial_accounts").update({
+      chat_id: Number(chatId),
+      first_name: String(message.from?.first_name || "").slice(0, 128) || null,
+      last_name: String(message.from?.last_name || "").slice(0, 128) || null,
+      username: String(message.from?.username || "").slice(0, 64) || null,
+      phone_fingerprint: fingerprint,
+      phone_verified_at: startedAt.toISOString(),
+      trial_started_at: startedAt.toISOString(),
+      trial_expires_at: expiresAt.toISOString(),
+      updated_at: startedAt.toISOString(),
+    }).eq("telegram_user_id", Number(userId)).is("phone_verified_at", null).select("telegram_user_id").maybeSingle();
+    if (activationError || !activated) {
+      console.error("Telegram trial activation failed", activationError?.message || "registration is not pending");
+      await telegram("sendMessage", { chat_id: chatId, text: "فعال‌سازی دوره انجام نشد. اگر قبلاً ثبت‌نام کرده‌اید، از بخش حساب کاربری وضعیت را ببینید؛ در غیر این صورت دوباره /start را بزنید." });
+      return json({ ok: true });
+    }
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: "✅ ثبت‌نام و احراز هویت انجام شد. دورهٔ آزمایشی ۲۴ساعتهٔ شما تا " + trialExpiryLabel(expiresAt.toISOString()) + " فعال است. حالا می‌توانید لینک یا محتوای خبری را برای ساخت پیش‌نمایش بفرستید. انتشار نهایی در کانال عمومی فقط با تأیید مدیر انجام می‌شود.",
+      reply_markup: { ...mainMenuReplyMarkup(false, true), input_field_placeholder: "لینک یا خبر را بفرستید" },
+      disable_web_page_preview: true,
+    });
+    return json({ ok: true });
+  }
+
+  if (message.reply_to_message?.message_id && messageText && (isAdmin || trialActive)) {
     const { data: editing } = await db.from("news_items")
       .select("id,title,summary,rewritten_title,rewritten_text,graphic_image_url,telegram_preview_message_id,telegram_edit_type,telegram_edit_requested_at,pub_date,source_name,source_type,graphic_quality_status")
       .eq("telegram_chat_id", chatId)
@@ -854,16 +1031,7 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true });
       }
       const clearSession = { telegram_edit_type: null, telegram_edit_user_id: null, telegram_edit_prompt_message_id: null, telegram_edit_requested_at: null, updated_at: new Date().toISOString() };
-      const keyboard = (id: string, qualityStatus?: string) => {
-        const rows: any[] = [
-          [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + id }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + id }],
-          [{ text: "🎨 ویرایش تصویر", callback_data: "edit:graphic:" + id }],
-          [{ text: "✅ انتشار در کانال", callback_data: "publish:" + id }, { text: "🗑 رد خبر", callback_data: "reject:" + id }],
-        [{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + id }],
-        ];
-        if (qualityStatus === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + id }]);
-        return { inline_keyboard: rows };
-      };
+      const keyboard = (id: string, qualityStatus?: string) => previewKeyboard(id, qualityStatus, isAdmin);
       if (editing.telegram_edit_type === "graphic") {
         if (cleanValue.length < 4 || cleanValue.length > 600) {
           await telegram("sendMessage", { chat_id: chatId, text: "توضیح ویرایش تصویر باید بین ۴ تا ۶۰۰ نویسه باشد. کوتاه‌تر و روشن‌تر بنویسید و دوباره به پیام درخواست پاسخ دهید." });
@@ -1020,24 +1188,41 @@ Deno.serve(async (req: Request) => {
   }
   if (messageText === "⚙️ تنظیمات ربات" || messageText === "تنظیمات ربات") {
     if (!isAdmin) {
-      await telegram("sendMessage", { chat_id: chatId, text: "این بخش فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin) });
+      await telegram("sendMessage", { chat_id: chatId, text: "این بخش فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin, trialActive) });
     } else {
       await showBotSettings(chatId);
     }
     return json({ ok: true });
   }
+  if (messageText === "🔐 ثبت‌نام و شروع آزمایشی") {
+    if (trialAccount?.phone_verified_at) {
+      const status = trialIsActive(trialAccount, chatId)
+        ? "✅ دورهٔ آزمایشی شما فعال است و تا " + trialExpiryLabel(String(trialAccount.trial_expires_at)) + " ادامه دارد."
+        : "⏳ دورهٔ آزمایشی این حساب قبلاً استفاده شده است و دوباره فعال نمی‌شود.";
+      await telegram("sendMessage", { chat_id: chatId, text: status, reply_markup: mainMenuReplyMarkup(isAdmin, trialActive) });
+    } else if (trialAccount?.consent_at) {
+      await sendTrialContactRequest(chatId);
+    } else {
+      await sendTrialConsent(chatId, "site");
+    }
+    return json({ ok: true });
+  }
   if (messageText === "📨 ثبت خبر") {
+    if (!isAdmin && !trialActive) {
+      await telegram("sendMessage", { chat_id: chatId, text: "برای ثبت خبر ابتدا احراز هویت کنید و دورهٔ آزمایشی را فعال کنید.", reply_markup: mainMenuReplyMarkup(isAdmin, trialActive) });
+      return json({ ok: true });
+    }
     await telegram("sendMessage", {
       chat_id: chatId,
       text: "خبر را همین‌جا بفرستید: لینک خبر، متن خبر، یا خبر فورواردشده همراه عکس یا ویدیو. برای عکس و ویدیوی فورواردی لینک لازم نیست.",
-      reply_markup: mainMenuReplyMarkup(isAdmin),
+      reply_markup: mainMenuReplyMarkup(isAdmin, trialActive),
       disable_web_page_preview: true,
     });
     return json({ ok: true });
   }
   if (messageText === "🗓️ صف انتشار") {
     if (!isAdmin) {
-      await telegram("sendMessage", { chat_id: chatId, text: "نمایش صف فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin) });
+      await telegram("sendMessage", { chat_id: chatId, text: "نمایش صف فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin, trialActive) });
     } else {
       await showScheduledQueue(chatId);
     }
@@ -1045,7 +1230,7 @@ Deno.serve(async (req: Request) => {
   }
   if (messageText === "📚 تاریخچه خبرها" || messageText === "🤖 مصرف AI") {
     if (!isAdmin) {
-      await telegram("sendMessage", { chat_id: chatId, text: "این گزارش فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin) });
+      await telegram("sendMessage", { chat_id: chatId, text: "این گزارش فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin, trialActive) });
       return json({ ok: true });
     }
     const panel = await telegram("sendMessage", { chat_id: chatId, text: "در حال آماده‌سازی گزارش…" });
@@ -1057,10 +1242,15 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
   if (messageText === "👤 حساب کاربری") {
+    const accountStatus = isAdmin ? "مدیر ربات"
+      : trialActive ? "دورهٔ آزمایشی فعال تا " + trialExpiryLabel(String(trialAccount?.trial_expires_at))
+      : trialAccount?.phone_verified_at ? "دورهٔ آزمایشی پایان یافته"
+      : trialAccount?.consent_at ? "در انتظار تأیید شماره"
+      : "ثبت‌نام نشده";
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "👤 حساب رادین نیوز\nشناسه تلگرام: " + String(userId || chatId) + "\nدسترسی: " + (isAdmin ? "مدیر ربات" : "کاربر") + "\n\nبرای ثبت خبر، «📨 ثبت خبر» را بزنید یا محتوا را همین‌جا بفرستید.",
-      reply_markup: mainMenuReplyMarkup(isAdmin),
+      text: "👤 حساب رادین نیوز\nشناسه تلگرام: " + String(userId || chatId) + "\nدسترسی: " + accountStatus + (trialActive ? "\n\nلینک یا محتوای خبر را برای ساخت پیش‌نمایش بفرستید." : "\n\nبرای دریافت یک روز استفادهٔ آزمایشی، ثبت‌نام و احراز هویت را کامل کنید."),
+      reply_markup: mainMenuReplyMarkup(isAdmin, trialActive),
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -1104,10 +1294,36 @@ Deno.serve(async (req: Request) => {
       });
       if (!scoped.response.ok || !scoped.result?.ok) console.error("Could not set admin Telegram commands", scoped.result?.description || "");
     }
+    if (!isAdmin) {
+      if (message.chat.type !== "private" || String(chatId) !== userId) {
+        await telegram("sendMessage", { chat_id: chatId, text: "برای ثبت‌نام، از دکمهٔ ورود سایت ربات را در گفت‌وگوی خصوصی باز کنید." });
+        return json({ ok: true });
+      }
+      const startPayload = messageText.split(/\s+/, 2)[1] || "";
+      const registrationSource = startPayload.toLowerCase() === "site" ? "site" : "telegram";
+      if (trialActive) {
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: "✅ حساب شما احراز هویت شده است. دورهٔ آزمایشی تا " + trialExpiryLabel(String(trialAccount?.trial_expires_at)) + " فعال است؛ لینک یا محتوای خبر را بفرستید تا پیش‌نمایش ساخته شود.",
+          reply_markup: mainMenuReplyMarkup(false, true), disable_web_page_preview: true,
+        });
+      } else if (trialAccount?.phone_verified_at) {
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: "⏳ دورهٔ آزمایشی ۲۴ساعتهٔ این حساب پایان یافته و دوباره فعال نمی‌شود. برای ادامه با پشتیبانی تماس بگیرید.",
+          reply_markup: mainMenuReplyMarkup(false, false), disable_web_page_preview: true,
+        });
+      } else if (trialAccount?.consent_at) {
+        await sendTrialContactRequest(chatId);
+      } else {
+        await sendTrialConsent(chatId, registrationSource);
+      }
+      return json({ ok: true });
+    }
     await telegram("sendMessage", {
       chat_id: chatId,
       text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت خبر، لینک را بفرستید یا متن، عکس و ویدیو را از منابع مختلف فوروارد کنید؛ برای عکس و ویدیوی فورواردی لینک لازم نیست. پس از آماده‌شدن گرافیک، پیش‌نمایش را ببینید و انتشار را تأیید کنید.\n\nدکمهٔ ثابت Menu فرمان‌ها را باز می‌کند؛ دکمه‌های رنگی پایین صفحه دسترسی سریع به بخش‌های ربات هستند.",
-      reply_markup: mainMenuReplyMarkup(isAdmin),
+      reply_markup: mainMenuReplyMarkup(isAdmin, trialActive),
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -1116,7 +1332,7 @@ Deno.serve(async (req: Request) => {
     await telegram("sendMessage", {
       chat_id: chatId,
       text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن یا متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد؛ برای ویدیو، خود ویدیو همراه کاور منتشر می‌شود.\n۴) کپشن خبر زیر ویدیو می‌آید و لینک و تگ منبع از متن انتشار پاک می‌شود.\n۵) با دکمهٔ انتشار در پیش‌نمایش، خبر را تأیید کنید.\n\nمدیر: «⚙️ تنظیمات ربات» صف و زمان‌بندی را باز می‌کند.\nبرای شروع دوباره، دکمهٔ Menu را باز کنید و «♻️ شروع مجدد» را بزنید.",
-      reply_markup: mainMenuReplyMarkup(isAdmin),
+      reply_markup: mainMenuReplyMarkup(isAdmin, trialActive),
       disable_web_page_preview: true,
     });
     return json({ ok: true });
@@ -1176,7 +1392,22 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
 
-  if (!isAdmin) return json({ ok: true });
+  if (!isAdmin && !trialActive) {
+    if (message.chat.type !== "private") {
+      await telegram("sendMessage", { chat_id: chatId, text: "ثبت‌نام و استفادهٔ آزمایشی در گفت‌وگوی خصوصی با ربات انجام می‌شود." });
+    } else if (trialAccount?.phone_verified_at) {
+      await telegram("sendMessage", { chat_id: chatId, text: "⏳ دورهٔ آزمایشی ۲۴ساعتهٔ این حساب پایان یافته است و تکرار نمی‌شود. برای ادامه با پشتیبانی تماس بگیرید.", reply_markup: mainMenuReplyMarkup(false, false) });
+    } else if (trialAccount?.consent_at) {
+      await sendTrialContactRequest(chatId);
+    } else {
+      await sendTrialConsent(chatId, "site");
+    }
+    return json({ ok: true });
+  }
+  if (!isAdmin && message.chat.type !== "private") {
+    await telegram("sendMessage", { chat_id: chatId, text: "ثبت و پردازش خبر برای کاربران آزمایشی فقط در گفت‌وگوی خصوصی با ربات فعال است." });
+    return json({ ok: true });
+  }
   if (!messageText && !message.photo?.length && !videoMedia) {
     await telegram("sendMessage", { chat_id: chatId, text: "لینک خبر یا خبر فورواردشده را همراه لینک بفرستید. برای راهنما /help را بزنید." });
     return json({ ok: true });
@@ -1223,9 +1454,13 @@ Deno.serve(async (req: Request) => {
     console.error("Telegram receipt acknowledgement failed", acknowledgement.response.status, acknowledgement.result?.description || "unknown");
   }
   const { data: existing } = await db.from("news_items")
-    .select("id,published,review_status,graphic_image_url").eq("source_url", canonicalUrl).maybeSingle();
+    .select("id,published,review_status,graphic_image_url,telegram_chat_id").eq("source_url", canonicalUrl).maybeSingle();
   if (existing?.published) {
     await telegram("sendMessage", { chat_id: chatId, text: "این لینک قبلاً در کانال منتشر شده است." });
+    return json({ ok: true });
+  }
+  if (!isAdmin && existing && String(existing.telegram_chat_id || "") !== String(chatId)) {
+    await telegram("sendMessage", { chat_id: chatId, text: "این خبر قبلاً برای بررسی ثبت شده است و امکان ویرایش پیش‌نمایش متعلق به حساب دیگری وجود ندارد." });
     return json({ ok: true });
   }
 
@@ -1430,7 +1665,7 @@ Deno.serve(async (req: Request) => {
       original_title: title,
       original_summary: summary || null,
       image_url: imageUrl || null,
-      telegram_chat_id: forwardedFromTelegram ? Number(chatId) : null,
+      telegram_chat_id: Number(chatId),
       telegram_preview_message_id: null,
       video_file_id: videoFileId || null,
       source_url: canonicalUrl,
