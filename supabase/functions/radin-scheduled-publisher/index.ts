@@ -29,9 +29,9 @@ Deno.serve(async (req: Request) => {
 
   const now = new Date().toISOString();
   const { data: due, error: dueError } = await db.from("news_items")
-    .select("id,title,rewritten_title,source_type,scheduled_at,graphic_image_url,original_image_url,review_status")
+    .select("id,title,rewritten_title,source_type,video_file_id,scheduled_at,graphic_image_url,original_image_url,review_status")
     .eq("published", false).eq("review_status", "approved").is("telegram_message_id", null)
-    .not("scheduled_at", "is", null).lte("scheduled_at", now)
+    .not("scheduled_at", "is", null).is("video_file_id", null).lte("scheduled_at", now)
     .order("scheduled_at", { ascending: true }).limit(5);
   if (dueError) return json({ error: "Could not load scheduled stories" }, 500);
 
@@ -44,6 +44,7 @@ Deno.serve(async (req: Request) => {
       results.push({ id: item.id, ok: false, skipped: "graphic or headline is not ready" });
       continue;
     }
+
     const { data: claimed, error: claimError } = await db.from("news_items")
       .update({ review_status: "publishing", updated_at: new Date().toISOString() })
       .eq("id", item.id).eq("published", false).eq("review_status", "approved")
@@ -52,6 +53,7 @@ Deno.serve(async (req: Request) => {
       results.push({ id: item.id, ok: true, skipped: "already claimed" });
       continue;
     }
+
     try {
       const response = await fetch(url + "/functions/v1/radin-publish-news", {
         method: "POST",
@@ -89,5 +91,6 @@ Deno.serve(async (req: Request) => {
       results.push({ id: item.id, ok: false, error: reason });
     }
   }
+
   return json({ ok: results.every((x) => x.ok), processed: results.length, results });
 });
