@@ -44,6 +44,22 @@ Deno.serve(async (req: Request) => {
     try { result = await response.json(); } catch {}
     return { response, result };
   };
+  const mainMenuReplyMarkup = (isAdmin: boolean) => {
+    const keyboard: any[][] = [
+      [{ text: "📨 ثبت خبر", style: "primary" }],
+    ];
+    if (isAdmin) {
+      keyboard.push(
+        [{ text: "🗓️ صف انتشار", style: "success" }, { text: "📚 تاریخچه خبرها", style: "success" }],
+        [{ text: "🤖 مصرف AI", style: "primary" }, { text: "⚙️ تنظیمات ربات", style: "success" }],
+      );
+    }
+    keyboard.push(
+      [{ text: "👤 حساب کاربری", style: "primary" }, { text: "ℹ️ راهنما و قوانین", style: "success" }],
+      [{ text: "💬 پشتیبانی", style: "danger" }],
+    );
+    return { keyboard, resize_keyboard: true, is_persistent: true };
+  };
   const answerCallback = async (id: string, text?: string) => {
     await telegram("answerCallbackQuery", { callback_query_id: id, text: text || "", show_alert: Boolean(text) });
   };
@@ -1004,34 +1020,103 @@ Deno.serve(async (req: Request) => {
   }
   if (messageText === "⚙️ تنظیمات ربات" || messageText === "تنظیمات ربات") {
     if (!isAdmin) {
-      await telegram("sendMessage", { chat_id: chatId, text: "این بخش فقط برای مدیر ربات در دسترس است." });
+      await telegram("sendMessage", { chat_id: chatId, text: "این بخش فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin) });
     } else {
       await showBotSettings(chatId);
     }
     return json({ ok: true });
   }
-  if (command === "/start") {
+  if (messageText === "📨 ثبت خبر") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت دستی، لینک خبر را بفرستید یا خبر را همراه عکس فوروارد کنید؛ فوروارد عکس یا ویدیو بدون لینک هم پذیرفته می‌شود. پس از آماده‌شدن پوستر، انتشار را خودتان تأیید می‌کنید.\n\nاز دکمهٔ ثابت پایین صفحه برای بازکردن تنظیمات ربات استفاده کنید.",
-      reply_markup: {
-        keyboard: [[{ text: "⚙️ تنظیمات ربات" }], [{ text: "ℹ️ راهنما" }]],
-        resize_keyboard: true,
-        is_persistent: true,
-      },
+      text: "خبر را همین‌جا بفرستید: لینک خبر، متن خبر، یا خبر فورواردشده همراه عکس یا ویدیو. برای عکس و ویدیوی فورواردی لینک لازم نیست.",
+      reply_markup: mainMenuReplyMarkup(isAdmin),
       disable_web_page_preview: true,
     });
     return json({ ok: true });
   }
-  if (command === "/help" || messageText === "ℹ️ راهنما") {
+  if (messageText === "🗓️ صف انتشار") {
+    if (!isAdmin) {
+      await telegram("sendMessage", { chat_id: chatId, text: "نمایش صف فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin) });
+    } else {
+      await showScheduledQueue(chatId);
+    }
+    return json({ ok: true });
+  }
+  if (messageText === "📚 تاریخچه خبرها" || messageText === "🤖 مصرف AI") {
+    if (!isAdmin) {
+      await telegram("sendMessage", { chat_id: chatId, text: "این گزارش فقط برای مدیر ربات در دسترس است.", reply_markup: mainMenuReplyMarkup(isAdmin) });
+      return json({ ok: true });
+    }
+    const panel = await telegram("sendMessage", { chat_id: chatId, text: "در حال آماده‌سازی گزارش…" });
+    const panelId = Number(panel.result?.result?.message_id || 0);
+    if (panel.response.ok && panel.result.ok && panelId) {
+      if (messageText === "📚 تاریخچه خبرها") await showBotActivity(chatId, panelId);
+      else await showAiUsage(chatId, panelId);
+    }
+    return json({ ok: true });
+  }
+  if (messageText === "👤 حساب کاربری") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده، لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن/متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد.\n۴) با دکمه «انتشار در کانال» خبر را دستی تأیید کنید.\n\nمدیر: از دکمهٔ «⚙️ تنظیمات ربات» برای تنظیم صف و زمان‌بندی استفاده کنید.\nلینک منبع در کپشن کانال درج نمی‌شود.",
-      reply_markup: {
-        keyboard: [[{ text: "⚙️ تنظیمات ربات" }], [{ text: "ℹ️ راهنما" }]],
-        resize_keyboard: true,
-        is_persistent: true,
-      },
+      text: "👤 حساب رادین نیوز\nشناسه تلگرام: " + String(userId || chatId) + "\nدسترسی: " + (isAdmin ? "مدیر ربات" : "کاربر") + "\n\nبرای ثبت خبر، «📨 ثبت خبر» را بزنید یا محتوا را همین‌جا بفرستید.",
+      reply_markup: mainMenuReplyMarkup(isAdmin),
+      disable_web_page_preview: true,
+    });
+    return json({ ok: true });
+  }
+  if (messageText === "💬 پشتیبانی") {
+    const supportTargets = adminIds.filter((id) => id !== userId).slice(0, 5);
+    const supportKeyboard = supportTargets.map((id, index) => [{
+      text: "💬 تماس با مدیر " + (index + 1),
+      url: "tg://user?id=" + id,
+      style: "primary",
+    }]);
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: supportTargets.length
+        ? "برای پشتیبانی، روی نام یکی از مدیران بزنید و پیام خود را در گفت‌وگوی خصوصی برای او بفرستید."
+        : "شما تنها مدیر ثبت‌شده هستید. برای پشتیبانی فنی از همین گفت‌وگو با شناسهٔ حساب خود استفاده کنید.",
+      reply_markup: supportKeyboard.length ? { inline_keyboard: supportKeyboard } : undefined,
+      disable_web_page_preview: true,
+    });
+    return json({ ok: true });
+  }
+  if (command === "/start") {
+    const menuButton = await telegram("setChatMenuButton", { menu_button: { type: "commands" } });
+    if (!menuButton.response.ok || !menuButton.result?.ok) console.error("Could not set persistent Telegram menu button", menuButton.result?.description || "");
+    const defaultCommands = [
+      { command: "start", description: "♻️ شروع مجدد" },
+      { command: "help", description: "ℹ️ راهنما و قوانین" },
+      { command: "categories", description: "🗂 دسته‌بندی خبرها" },
+    ];
+    const commands = await telegram("setMyCommands", { commands: defaultCommands });
+    if (!commands.response.ok || !commands.result?.ok) console.error("Could not set Telegram commands", commands.result?.description || "");
+    if (isAdmin && message.chat.type === "private") {
+      const adminCommands = [
+        ...defaultCommands,
+        { command: "settings", description: "⚙️ تنظیمات ربات" },
+        { command: "status", description: "📊 وضعیت ربات" },
+      ];
+      const scoped = await telegram("setMyCommands", {
+        scope: { type: "chat", chat_id: chatId },
+        commands: adminCommands,
+      });
+      if (!scoped.response.ok || !scoped.result?.ok) console.error("Could not set admin Telegram commands", scoped.result?.description || "");
+    }
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت خبر، لینک را بفرستید یا متن، عکس و ویدیو را از منابع مختلف فوروارد کنید؛ برای عکس و ویدیوی فورواردی لینک لازم نیست. پس از آماده‌شدن گرافیک، پیش‌نمایش را ببینید و انتشار را تأیید کنید.\n\nدکمهٔ ثابت Menu فرمان‌ها را باز می‌کند؛ دکمه‌های رنگی پایین صفحه دسترسی سریع به بخش‌های ربات هستند.",
+      reply_markup: mainMenuReplyMarkup(isAdmin),
+      disable_web_page_preview: true,
+    });
+    return json({ ok: true });
+  }
+  if (command === "/help" || messageText === "ℹ️ راهنما و قوانین" || messageText === "ℹ️ راهنما") {
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: "راهنمای ثبت دستی خبر:\n۱) لینک خبر را بفرستید، یا خبر را همراه عکس یا ویدیو فوروارد کنید؛ برای رسانهٔ فورواردشده لینک الزامی نیست.\n۲) عنوان خبر باید در کپشن یا متن باشد.\n۳) ربات پیش‌نمایش گرافیکی می‌سازد؛ برای ویدیو، خود ویدیو همراه کاور منتشر می‌شود.\n۴) کپشن خبر زیر ویدیو می‌آید و لینک و تگ منبع از متن انتشار پاک می‌شود.\n۵) با دکمهٔ انتشار در پیش‌نمایش، خبر را تأیید کنید.\n\nمدیر: «⚙️ تنظیمات ربات» صف و زمان‌بندی را باز می‌کند.\nبرای شروع دوباره، دکمهٔ Menu را باز کنید و «♻️ شروع مجدد» را بزنید.",
+      reply_markup: mainMenuReplyMarkup(isAdmin),
       disable_web_page_preview: true,
     });
     return json({ ok: true });
