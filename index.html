@@ -62,15 +62,18 @@
     .poster-open{position:absolute;left:12px;bottom:12px;border:1px solid #ffffff34;border-radius:999px;padding:7px 11px;background:#071629c9;backdrop-filter:blur(12px);font-size:11px;color:#eff8ff;opacity:0;transform:translateY(6px);transition:.2s}
     .poster-link:hover .poster-open,.poster-link:focus-visible .poster-open{opacity:1;transform:translateY(0)}
     .showcase-note{margin:12px 3px 2px;color:#a7b9cc;font-size:12px}
-    .telegram-embed{min-height:440px;display:flex;justify-content:center;align-items:flex-start;overflow:hidden;border:1px solid #ffffff12;border-radius:15px;background:#f8f9fb;padding:9px}
-    .telegram-embed iframe{max-width:100%!important;border:0!important;border-radius:10px!important}
-    .telegram-embed noscript{padding:24px;color:#173251}
+    .video-preview{position:relative;isolation:isolate;display:block;overflow:hidden;aspect-ratio:4/5;border-radius:15px;background:#061426}
+    .video-preview img{display:block;width:100%;height:100%;object-fit:contain}
+    .video-preview:after{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,#07162900 46%,#071629bc)}
+    .video-play{position:absolute;left:50%;top:50%;z-index:1;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:9px;white-space:nowrap;padding:12px 17px;border:1px solid #ffffff45;border-radius:999px;background:#071629d9;backdrop-filter:blur(12px);color:#fff;font-size:12px;font-weight:800;transition:transform .2s,background .2s}
+    .video-play i{font-size:24px;color:var(--gold)}.video-preview:hover .video-play{transform:translate(-50%,-50%) scale(1.04);background:#0a2544ee}
+    .video-duration{position:absolute;left:12px;bottom:12px;z-index:1;padding:5px 9px;border-radius:999px;background:#071629c9;color:#eaf2fc;font-size:10px}
     .video-caption{display:flex;align-items:flex-start;gap:9px;margin-top:13px;padding:12px;border-radius:12px;background:#58e0d00c;color:#b8c9dc;font-size:12px;line-height:1.8}
     .video-caption i{color:var(--cyan);margin-top:4px;flex:none}
     .sample-link{display:inline-flex;align-items:center;gap:8px;color:#8eece0;font-size:12px;font-weight:800;margin:13px 3px 0}
     .sample-link:hover{color:#fff}
     @media(max-width:900px){.showcase-grid{grid-template-columns:1fr 1fr}}
-    @media(max-width:640px){.showcase-grid{grid-template-columns:1fr}.showcase-card{padding:13px}.telegram-embed{min-height:350px}.showcase-heading{gap:9px}.showcase-label{font-size:9px;padding:5px 7px}}
+    @media(max-width:640px){.showcase-grid{grid-template-columns:1fr}.showcase-card{padding:13px}.showcase-heading{gap:9px}.showcase-label{font-size:9px;padding:5px 7px}}
 
   </style>
 </head>
@@ -159,10 +162,10 @@
           </article>
           <article class="showcase-card video-card">
             <div class="showcase-heading"><span class="showcase-icon video"><i class="fa-solid fa-circle-play"></i></span><div><strong>نمونهٔ پست ویدیویی</strong><small>ویدیوی آرشیوی · پخش واقعی کانال</small></div><span class="showcase-label live-sample"><i class="fa-solid fa-circle"></i> نمونهٔ آرشیوی</span></div>
-            <div class="telegram-embed">
-              <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-post="radinnews/462790" data-width="100%" data-dark="1"></script>
-              <noscript><a href="https://t.me/radinnews/462790" target="_blank" rel="noopener">بازکردن نمونهٔ ویدیو در کانال رادین نیوز</a></noscript>
-            </div>
+            <a class="video-preview" href="https://t.me/radinnews/462790" target="_blank" rel="noopener" aria-label="پخش نمونهٔ ویدیوی کانال رادین نیوز">
+              <img src="https://gtbrkufbsllbosdyogfx.supabase.co/storage/v1/object/public/radin-graphics/news/1284c914-3728-41f0-be1c-8f8dff759328-1793647240833.png" alt="کاور گرافیکی نمونهٔ ویدیوی خبری" loading="lazy">
+              <span class="video-play"><i class="fa-solid fa-circle-play"></i> پخش نمونهٔ ویدیو</span><span class="video-duration">ویدیوی واقعی · ۱۴ ثانیه</span>
+            </a>
             <div class="video-caption"><i class="fa-solid fa-closed-captioning"></i><span>این نمونه پیش از اصلاح کپشن منتشر شده؛ در انتشارهای جدید، متن خبرِ پاک‌سازی‌شده زیر ویدیو می‌آید و تگ مبدأ حذف می‌شود.</span></div>
             <a class="sample-link" href="https://t.me/radinnews/462790" target="_blank" rel="noopener">مشاهدهٔ پست در تلگرام <i class="fa-solid fa-arrow-up-left-from-square"></i></a>
           </article>
