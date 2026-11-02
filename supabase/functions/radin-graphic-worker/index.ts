@@ -346,8 +346,8 @@ Deno.serve(async(req)=>{
      const {error:saveError}=await db.from("news_items").update({rewritten_title:textTitle,rewritten_text:textBody,updated_at:new Date().toISOString()}).eq("id",item.id);
      if(saveError)throw saveError;
      const botToken=Deno.env.get("BOT_TOKEN")||"";
-     const keyboard=[[{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],[{text:"✅ انتشار در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]];
-     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,text:"پیش‌نمایش خبر — هنوز منتشر نشده\n\n"+textTitle+"\n\n"+textBody,reply_markup:{inline_keyboard:keyboard},disable_web_page_preview:true}),signal:AbortSignal.timeout(20000)});
+     const keyboard=[[{text:"✏️ ویرایش تیتر",callback_data:"edit:headline:"+item.id},{text:"📝 ویرایش کپشن",callback_data:"edit:caption:"+item.id}],[{text:"🎨 درخواست طراحی پوستر",callback_data:"designposter:"+item.id}],[{text:"✅ انتشار فقط متن در کانال",callback_data:"publish:"+item.id},{text:"🗑 رد خبر",callback_data:"reject:"+item.id}]];
+     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,text:"متن آمادهٔ بازبینی — هنوز تأیید یا منتشر نشده\n\n"+textTitle+"\n\n"+textBody,reply_markup:{inline_keyboard:keyboard},disable_web_page_preview:true}),signal:AbortSignal.timeout(20000)});
      const sentBody=await sent.json().catch(()=>({}));
      if(!sent.ok||!sentBody.ok)throw new Error("Telegram text preview failed: "+String(sentBody.description||sent.status));
      await db.from("news_items").update({telegram_preview_message_id:sentBody.result?.result?.message_id||sentBody.result?.message_id||null}).eq("id",item.id);
