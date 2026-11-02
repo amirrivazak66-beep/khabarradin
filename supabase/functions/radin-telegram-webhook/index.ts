@@ -343,7 +343,7 @@ Deno.serve(async (req: Request) => {
       const chatId=callback.message?.chat?.id;
       await answerCallback(String(callback.id),"زبان ثبت شد؛ ابتدا متن آماده می‌شود.");
       await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:callback.message?.message_id,reply_markup:{inline_keyboard:[]}});
-      const {error:optionError}=await db.from("news_items").update({telegram_translation_language:language==="none"?null:language,telegram_generate_graphic:false,telegram_preview_message_id:null}).eq("id",itemId).eq("published",false);
+      const {error:optionError}=await db.from("news_items").update({telegram_translation_language:language==="none"?null:language,telegram_generate_graphic:true,telegram_preview_message_id:null}).eq("id",itemId).eq("published",false);
       if(optionError){await telegram("sendMessage",{chat_id:chatId,text:"ذخیره زبان ناموفق بود؛ خبر را دوباره فوروارد کنید."});return json({ok:true});}
       const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
       const result:any=await worker.json().catch(()=>({}));
@@ -1370,12 +1370,40 @@ Deno.serve(async (req: Request) => {
   }
 
   await db.from("bot_activity").insert({event_type:"received",item_id:itemId,actor:"telegram",details:{title,source:sourceName}});
+  const languageSample=[manualText,title,summary].filter(Boolean).join(" ").normalize("NFKC");
+  const normalizedLanguageSample=languageSample.toLowerCase().replace(/ي/g,"ی").replace(/ك/g,"ک").replace(/[ۀة]/g,"ه");
+  const languageTokens=normalizedLanguageSample.match(/[\p{L}]+/gu)||[];
+  const persianMarkers=new Set(["از","در","به","که","برای","این","آن","یک","است","هست","بود","شد","شده","می","نمی","خواهد","کرد","کرده","گفت","اعلام","ایران","تهران","کشور","امروز","گزارش","وزارت","دارد","داده","فوری","زلزله","انفجار","خبرنگار","می‌شود","نمی‌شود"]);
+  const arabicMarkers=new Set(["فی","من","على","إلى","هذا","هذه","الذی","التی","أن","إن","قال","قالت","أعلن","أعلنت","أكد","الرئیس","الوزیر","الجیش","الإیرانی","الأمریکی","الخبر","الآن","بعد","قبل","بیان","وأضاف"]);
+  const persianScore=languageTokens.filter((word)=>persianMarkers.has(word)).length+(languageSample.match(/[پچژگک\u06cc]/g)||[]).length*2;
+  const arabicScore=languageTokens.filter((word)=>arabicMarkers.has(word)).length;
+  const latinCount=(languageSample.match(/[A-Za-z]/g)||[]).length;
+  const arabicScriptCount=(languageSample.match(/[\u0600-\u06FF]/g)||[]).length;
+  const isPersianCaption=persianScore>arabicScore&&latinCount<=arabicScriptCount;
+  if(isPersianCaption){
+    const {error:languageUpdateError}=await db.from("news_items").update({telegram_translation_language:null,telegram_generate_graphic:true,telegram_preview_message_id:null,updated_at:new Date().toISOString()}).eq("id",itemId).eq("published",false);
+    if(languageUpdateError){
+      await telegram("sendMessage",{chat_id:chatId,text:"کپشن فارسی تشخیص داده شد، اما ثبت زبان ناموفق بود. لطفاً خبر را دوباره فوروارد کنید."});
+      return json({ok:true});
+    }
+    await db.from("bot_activity").insert({event_type:"language_detected",item_id:itemId,actor:"telegram",details:{language:"fa",translation_skipped:true}});
+    await telegram("sendMessage",{chat_id:chatId,text:"کپشن فارسی تشخیص داده شد؛ بدون ترجمه در حال آماده‌سازی پیش‌نمایش گرافیکی است."});
+    const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
+    const result:any=await worker.json().catch(()=>({}));
+    const processed=(result.results||[]).find((x:any)=>x.id===itemId);
+    if(!worker.ok||!processed?.ok){
+      const reason=String(processed?.error||result.error||"خطای موقت در آماده‌سازی").slice(0,220);
+      await telegram("sendMessage",{chat_id:chatId,text:"پیش‌نمایش کامل نشد؛ می‌توانید دوباره برای همین خبر تلاش کنید.\n\nجزئیات: "+reason,reply_markup:{inline_keyboard:[[{text:"🔄 تلاش دوباره برای ساخت پیش‌نمایش",callback_data:"designposter:"+itemId}]]}});
+    }
+    return json({ok:true});
+  }
   const optionKeyboard={inline_keyboard:[
     [{text:"🇸🇦 ترجمه عربی به فارسی",callback_data:"processnews:"+itemId+":ar"}],
     [{text:"🇬🇧 ترجمه انگلیسی به فارسی",callback_data:"processnews:"+itemId+":en"}],
-    [{text:"بدون ترجمه، فقط متن اصلی",callback_data:"processnews:"+itemId+":none"}]
+    [{text:"بدون ترجمه، متن اصلی",callback_data:"processnews:"+itemId+":none"}]
   ]};
-  await telegram("sendMessage",{chat_id:chatId,text:"زبان متن را برای آماده‌سازی نسخهٔ بازبینی انتخاب کنید:",reply_markup:optionKeyboard});
+  await db.from("bot_activity").insert({event_type:"language_detected",item_id:itemId,actor:"telegram",details:{language:"non_fa",translation_choices_shown:true}});
+  await telegram("sendMessage",{chat_id:chatId,text:"کپشن غیر فارسی تشخیص داده شد. زبان متن را برای ترجمه و آماده‌سازی پیش‌نمایش انتخاب کنید:",reply_markup:optionKeyboard});
   return json({ok:true});
   const { data: ready } = await db.from("news_items")
     .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,source_url,pub_date,created_at,graphic_image_url,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
