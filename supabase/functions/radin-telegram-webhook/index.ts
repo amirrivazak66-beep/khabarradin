@@ -898,21 +898,25 @@ Deno.serve(async (req: Request) => {
           await telegram("sendMessage", { chat_id: chatId, text: "بازطراحی تصویر انجام نشد؛ پوستر قبلی حفظ شده است. دوباره درخواست بدهید یا با همان پیش‌نمایش ادامه دهید." });
           return json({ ok: true });
         }
-        const previewCaption = ("پیش‌نمایش خبر — هنوز منتشر نشده\n" + String(ready.rewritten_title || ready.title || "خبر رادین") + (ready.rewritten_text ? "\n\n" + ready.rewritten_text : ready.summary ? "\n\n" + ready.summary : "")).slice(0, 1024);
+        const rawPreviewBody=String(ready.telegram_caption_edited&&ready.rewritten_text?ready.rewritten_text:ready.summary||"").replace(/https?:\/\/[^\s<>]+|(?:www\.)?t\.me\/[^\s<>]+|telegram\.me\/[^\s<>]+/gi,"").replace(/(?:^|\s)@[a-z0-9_]+/gi," ");
+        const cleanedPreviewBody=rawPreviewBody.split(/\r?\n/).filter((line:string)=>/[\p{L}\p{N}]/u.test(line)).join("\n").trim();
+        const previewBody=cleanedPreviewBody||String(ready.title||"");
+        const previewCaption=("پیش‌نمایش خبر — هنوز منتشر نشده\n"+String(ready.rewritten_title||ready.title||"خبر رادین")+(previewBody?"\n\n"+previewBody:"")).slice(0,1024);
         let previewMessageId = ready.telegram_preview_message_id || editing.telegram_preview_message_id;
         let previewUpdated = false;
         if (previewMessageId) {
           const editedPhoto = await telegram("editMessageMedia", {
             chat_id: chatId, message_id: previewMessageId,
-            media: ready.video_file_id ? { type: "video", media: ready.video_file_id, cover: ready.graphic_image_url, caption: previewCaption } : { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
+            media: { type: "photo", media: ready.graphic_image_url, caption: previewCaption },
             reply_markup: keyboard(editing.id, ready.graphic_quality_status),
           });
           previewUpdated = editedPhoto.response.ok && editedPhoto.result.ok;
         }
         if (!previewUpdated) {
-          const sent = await telegram(ready.video_file_id ? "sendVideo" : "sendPhoto", ready.video_file_id
-            ? { chat_id: chatId, video: ready.video_file_id, cover: ready.graphic_image_url, caption: previewCaption, reply_markup: keyboard(editing.id, ready.graphic_quality_status) }
-            : { chat_id: chatId, photo: ready.graphic_image_url, caption: previewCaption, reply_markup: keyboard(editing.id, ready.graphic_quality_status) });
+          const sent = await telegram("sendPhoto", {
+            chat_id: chatId, photo: ready.graphic_image_url, caption: previewCaption,
+            reply_markup: keyboard(editing.id, ready.graphic_quality_status),
+          });
           if (sent.response.ok && sent.result.ok) previewMessageId = sent.result.result?.message_id || previewMessageId;
           else console.error("Updated graphic preview could not be sent", sent.result?.description || "unknown");
         }
