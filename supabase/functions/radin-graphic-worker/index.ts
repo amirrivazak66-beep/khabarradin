@@ -345,7 +345,7 @@ Deno.serve(async(req)=>{
    const footerSvg=isTelegram
      ? '<path d="M0 1200 H1080 V1350 H0 Z" fill="#041c51"/><path d="M0 1200 H1080" stroke="url(#gold)" stroke-width="7"/><g opacity=".18" fill="#1686ff">'+Array.from({length:56},(_,i)=>'<circle cx="'+(10+(i%14)*25)+'" cy="'+(1225+Math.floor(i/14)*18)+'" r="4"/>').join("")+'</g><circle cx="78" cy="1275" r="38" fill="#19a8ed"/><path d="M53 1275 L103 1254 L92 1296 L76 1285 L67 1292 L69 1278 Z" fill="#fff"/><text x="135" y="1285" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="#fff">@radinnews</text><path d="M340 1238 V1300" stroke="#31c4ff" stroke-width="3"/><text x="1020" y="1285" text-anchor="end" direction="rtl" font-family="Vazirmatn" font-size="26" fill="#fff">آخرین اخبار ایران و جهان</text><path d="M0 1332 Q540 1355 1080 1324" fill="none" stroke="url(#gold)" stroke-width="8"/>'
      : '<path d="M0 1120 Q0 1095 30 1095 H1080 V1350 H0 Z" fill="#041c51"/><path d="M0 1120 H1080" stroke="url(#gold)" stroke-width="7"/><g opacity=".18" fill="#1686ff">'+Array.from({length:56},(_,i)=>'<circle cx="'+(10+(i%14)*25)+'" cy="'+(1160+Math.floor(i/14)*22)+'" r="4"/>').join("")+'</g><circle cx="80" cy="1220" r="42" fill="#19a8ed"/><path d="M52 1220 L108 1197 L96 1242 L78 1230 L68 1238 L70 1224 Z" fill="#fff"/><text x="145" y="1230" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="#fff">@radinnews</text><path d="M350 1184 V1242" stroke="#31c4ff" stroke-width="3"/><text x="1020" y="1230" text-anchor="end" direction="rtl" font-family="Vazirmatn" font-size="26" fill="#fff">آخرین اخبار ایران و جهان</text><path d="M0 1330 Q540 1360 1080 1320" fill="none" stroke="url(#gold)" stroke-width="8"/>';
-   if(isTelegram&&item.telegram_generate_graphic===false){
+   if(isTelegram&&item.telegram_generate_graphic===false&&!item.video_file_id){
      const textTitle=graphicHeadline||rawTitle||"خبر رادین";
      const textBody=rawSummary||String(item.rewritten_text||"");
      const {error:saveError}=await db.from("news_items").update({rewritten_title:textTitle,rewritten_text:textBody,updated_at:new Date().toISOString()}).eq("id",item.id);
@@ -439,12 +439,21 @@ Deno.serve(async(req)=>{
      const sourceNote=/^https?:\/\//i.test(String(item.source_url||""))?"\n🔎 منبع قابل پیگیری: "+new URL(String(item.source_url)).hostname:item.source_type==="telegram"?(sender.startsWith("@")?"\n📡 منبع فوروارد: "+sender+"؛ راستی‌آزمایی مستقل نشده":"\n⚠️ منبع فوروارد: "+(sender||"نامشخص")+"؛ شناسهٔ عمومی برای بررسی در دسترس نیست"):"";
      const received=item.created_at?"\nدریافت ربات: "+new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Tehran"}).format(new Date(item.created_at)):"";
      const caption=("پیش‌نمایش خبر — هنوز منتشر نشده\n"+graphicHeadline+(item.telegram_caption_edited&&item.rewritten_text?"\n\n"+String(item.rewritten_text):"")+sourceNote+received+qualityNote).slice(0,900);
-     const sendMethod=item.video_file_id?"sendVideo":"sendPhoto";
-     const mediaPayload=item.video_file_id?{chat_id:item.telegram_chat_id,video:item.video_file_id,cover:pub.publicUrl,caption,reply_markup:{inline_keyboard:keyboard}}:{chat_id:item.telegram_chat_id,photo:pub.publicUrl,caption,reply_markup:{inline_keyboard:keyboard}};
-     const sent=await fetch("https://api.telegram.org/bot"+botToken+"/"+sendMethod,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(mediaPayload),signal:AbortSignal.timeout(20000)});
-     const sentBody=await sent.json().catch(()=>({}));
-     if(!sent.ok||!sentBody.ok)throw new Error("Telegram queued preview failed: "+String(sentBody.description||sent.status));
-     const {error:previewUpdateError}=await db.from("news_items").update({telegram_preview_message_id:sentBody.result?.message_id||null}).eq("id",item.id);
+     let sent:Response|null=null;
+     let sentBody:any={};
+     if(item.video_file_id&&item.telegram_preview_message_id){
+       sent=await fetch("https://api.telegram.org/bot"+botToken+"/editMessageMedia",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:item.telegram_chat_id,message_id:item.telegram_preview_message_id,media:{type:"video",media:item.video_file_id,cover:pub.publicUrl,caption},reply_markup:{inline_keyboard:keyboard}}),signal:AbortSignal.timeout(20000)});
+       sentBody=await sent.json().catch(()=>({}));
+     }
+     if(!sent?.ok||!sentBody.ok){
+       const sendMethod=item.video_file_id?"sendVideo":"sendPhoto";
+       const mediaPayload=item.video_file_id?{chat_id:item.telegram_chat_id,video:item.video_file_id,cover:pub.publicUrl,caption,reply_markup:{inline_keyboard:keyboard}}:{chat_id:item.telegram_chat_id,photo:pub.publicUrl,caption,reply_markup:{inline_keyboard:keyboard}};
+       sent=await fetch("https://api.telegram.org/bot"+botToken+"/"+sendMethod,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(mediaPayload),signal:AbortSignal.timeout(20000)});
+       sentBody=await sent.json().catch(()=>({}));
+     }
+     if(!sent?.ok||!sentBody.ok)throw new Error("Telegram queued preview failed: "+String(sentBody.description||sent?.status));
+     const previewId=sentBody.result?.message_id||item.telegram_preview_message_id||null;
+     const {error:previewUpdateError}=await db.from("news_items").update({telegram_preview_message_id:previewId}).eq("id",item.id);
      if(previewUpdateError)throw previewUpdateError;
    }
    results.push({id:item.id,ok:true,ai_redesigned:aiStatus==="redesigned",ai_graphic:aiStatus==="ai_graphic",ai_status:aiStatus,headline_status:headlineStatus,graphic_quality_status:graphicQualityStatus,graphic_quality_score:graphicQualityScore,graphic_quality_notes:graphicQualityNotes});
