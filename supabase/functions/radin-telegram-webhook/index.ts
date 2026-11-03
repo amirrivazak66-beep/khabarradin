@@ -1325,6 +1325,11 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
   if (command === "/start") {
+    const botIdentity = await telegram("getMe", {});
+    console.log("Telegram /start bot identity", {
+      username: botIdentity.result?.result?.username || null,
+      get_me_ok: botIdentity.response.ok && botIdentity.result?.ok === true,
+    });
     const menuButton = await telegram("setChatMenuButton", { menu_button: { type: "commands" } });
     if (!menuButton.response.ok || !menuButton.result?.ok) console.error("Could not set persistent Telegram menu button", menuButton.result?.description || "");
     const defaultCommands = [
@@ -1353,11 +1358,6 @@ Deno.serve(async (req: Request) => {
       }
       const startPayload = messageText.split(/\s+/, 2)[1] || "";
       const registrationSource = startPayload.toLowerCase() === "site" ? "site" : "telegram";
-      const botIdentity = await telegram("getMe", {});
-      console.log("Telegram /start bot identity", {
-        username: botIdentity.result?.result?.username || null,
-        get_me_ok: botIdentity.response.ok && botIdentity.result?.ok === true,
-      });
       console.log("Telegram /start flow", {
         chat_type: message.chat?.type || null,
         is_admin: isAdmin,
