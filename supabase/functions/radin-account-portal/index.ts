@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.0";
 const APP_ORIGIN = "https://amirrivazak66-beep.github.io";
 const MAX_INIT_AGE_SECONDS = 60 * 60;
 const SESSION_TTL_SECONDS = 30 * 60;
+const TELEGRAM_PRODUCTION_ED25519_KEY = "e7bf03a2fa4602af4580703d88dda5bb59f32ed8b02a56c187fe7d34caed242d";
 const encoder = new TextEncoder();
 
 const json = (body: unknown, status = 200, origin = APP_ORIGIN) =>
@@ -44,6 +45,43 @@ const hmac = async (keyBytes: Uint8Array, message: string) => {
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(message)));
 };
 
+const hexBytes = (value: string) =>
+  Uint8Array.from(value.match(/.{2}/g) || [], (pair) => Number.parseInt(pair, 16));
+
+const getTelegramBotId = async (botToken: string) => {
+  try {
+    const response = await fetch("https://api.telegram.org/bot" + botToken + "/getMe", {
+      signal: AbortSignal.timeout(5000),
+    });
+    const result = await response.json();
+    const botId = String(result?.result?.id ?? "");
+    return response.ok && result?.ok === true && /^\d{1,16}$/.test(botId) ? botId : null;
+  } catch {
+    return null;
+  }
+};
+
+const verifyTelegramThirdPartySignature = async (values: Map<string, string>, botId: string) => {
+  const signature = values.get("signature") || "";
+  if (!signature || !/^[A-Za-z0-9_-]+={0,2}$/.test(signature)) return false;
+  try {
+    const dataCheckString = botId + ":WebAppData\n" + [...values.entries()]
+      .filter(([key]) => key !== "hash" && key !== "signature")
+      .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+      .map(([key, value]) => key + "=" + value)
+      .join("\n");
+    const publicKey = await crypto.subtle.importKey(
+      "raw", hexBytes(TELEGRAM_PRODUCTION_ED25519_KEY), { name: "Ed25519" }, false, ["verify"],
+    );
+    return await crypto.subtle.verify(
+      { name: "Ed25519" }, publicKey, fromBase64url(signature), encoder.encode(dataCheckString),
+    );
+  } catch (error) {
+    console.error("Telegram Ed25519 verification failed", String((error as Error)?.name || "unknown"));
+    return false;
+  }
+};
+
 const verifyTelegramInitData = async (raw: string, botToken: string) => {
   if (!raw || raw.length > 12000) return null;
   const params = new URLSearchParams(raw);
@@ -78,7 +116,13 @@ const verifyTelegramInitData = async (raw: string, botToken: string) => {
       break;
     }
   }
-  if (!validHash) return null;
+  let verifiedBy: "hmac" | "ed25519" = "hmac";
+  if (!validHash) {
+    if (!values.has("signature")) return null;
+    const botId = await getTelegramBotId(botToken);
+    if (!botId || !await verifyTelegramThirdPartySignature(values, botId)) return null;
+    verifiedBy = "ed25519";
+  }
 
   try {
     const user = JSON.parse(userRaw);
@@ -90,6 +134,7 @@ const verifyTelegramInitData = async (raw: string, botToken: string) => {
       lastName: String(user?.last_name || "").slice(0, 128),
       username: String(user?.username || "").slice(0, 64),
       authDate,
+      verifiedBy,
     };
   } catch {
     return null;
@@ -200,6 +245,7 @@ Deno.serve(async (req: Request) => {
         : "signature_or_data_mismatch";
       console.warn("Telegram Mini App authentication rejected", {
         reason,
+        signaturePresent: params.has("signature"),
         initDataLength: rawInitData.length,
         ageSeconds: Number.isInteger(authDate) ? now - authDate : null,
       });
@@ -220,7 +266,10 @@ Deno.serve(async (req: Request) => {
       }
     }
     sessionToken = await createSession(userId, serviceKey);
-    await writeSecurityEvent("session_started", userId, userId, { via: "telegram_mini_app" });
+    await writeSecurityEvent("session_started", userId, userId, {
+      via: "telegram_mini_app",
+      authentication_method: identity.verifiedBy,
+    });
   } else {
     const authorization = req.headers.get("authorization") || "";
     const match = authorization.match(/^Bearer\s+(.+)$/i);
