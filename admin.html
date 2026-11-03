@@ -188,6 +188,25 @@ body{background:#f2f6f8}
 .field input:focus{border-color:#58cbbb}
 .panel,.stat-card{border-radius:18px}
 .btn-primary{background:linear-gradient(135deg,#45cbbb,#269a9b);border-color:#269a9b}
+
+#mfaPanel{display:none;margin:16px 0 0;padding:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:16px;color:#fff;text-align:right}
+#mfaPanel h3{margin:0 0 8px;font-size:18px}
+#mfaPanel p{color:#b8c4d5;line-height:1.8;font-size:13px}
+#mfaQr{display:none;width:190px;height:190px;object-fit:contain;background:#fff;border-radius:12px;padding:8px;margin:10px auto}
+#mfaSecretWrap{display:none;direction:ltr;text-align:center;word-break:break-all;background:rgba(0,0,0,.22);padding:10px;border-radius:9px}
+#mfaCode{direction:ltr;text-align:center;letter-spacing:.35em;font-size:22px}
+#mfaVerifyBtn,#mfaBackBtn{width:100%;margin-top:10px}
+#mfaBackBtn{background:transparent;color:#b8c4d5;border:1px solid rgba(255,255,255,.18)}
+#mfaError{display:none;margin-top:10px;color:#ff9b9b;font-size:13px;line-height:1.7}
+#loginScreen.mfa-active .field,#loginScreen.mfa-active #loginBtn,#loginScreen.mfa-active .login-note{display:none}
+.access-stack{display:grid;gap:12px}
+.access-card{border:1px solid #e5eaf0;border-radius:14px;padding:14px 16px;background:#fff;display:grid;gap:8px}
+.access-card .meta{color:#68758a;font-size:12px;line-height:1.8;word-break:break-word}
+.access-card .actions{display:flex;gap:8px;flex-wrap:wrap}
+.access-card button{padding:8px 12px}
+.access-status{color:#64748b;font-size:13px;margin:10px 0}
+.access-error{color:#b42318}
+.access-empty{color:#738197;background:#f7f9fc;border-radius:12px;padding:14px}
 </style>
 </head>
 <body>
@@ -207,6 +226,16 @@ body{background:#f2f6f8}
       </div>
       <button id="loginBtn">ورود به پنل</button>
       <div class="login-error" id="loginError"></div>
+      <div id="mfaPanel" aria-live="polite">
+        <h3>تأیید دومرحله‌ای مدیر</h3>
+        <p id="mfaHelp">برای ورود به پنل، کد برنامهٔ احراز هویت را وارد کنید.</p>
+        <img id="mfaQr" alt="QR کد ورود دومرحله‌ای">
+        <p id="mfaSecretWrap">کلید بازیابی دستی: <code id="mfaSecret"></code></p>
+        <div class="field"><label for="mfaCode">کد شش‌رقمی برنامهٔ احراز هویت</label><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+        <button id="mfaVerifyBtn" type="button">تأیید کد و ورود</button>
+        <button id="mfaBackBtn" type="button">لغو و بازگشت</button>
+        <div id="mfaError"></div>
+      </div>
       <div class="login-note">
         این حساب همون کاربریه که در Supabase → Authentication → Users ساخته‌اید.
       </div>
@@ -234,6 +263,7 @@ body{background:#f2f6f8}
         <a data-view="viewNews"><i class="fa-solid fa-newspaper"></i> خبرها</a>
         <a data-view="viewGraphicStudio"><i class="fa-solid fa-palette"></i> استودیو گرافیک</a>
         <a data-view="viewBotSettings"><i class="fa-brands fa-telegram"></i> ربات</a>
+        <a data-view="viewUserAccess"><i class="fa-solid fa-user-shield"></i> کاربران و دسترسی‌ها</a>
         <a data-view="viewSecurity"><i class="fa-solid fa-lock"></i> امنیت</a>
       </nav>
       <div class="spacer"></div>
@@ -351,13 +381,34 @@ body{background:#f2f6f8}
         </div>
       </section>
 
+      <section id="viewUserAccess" class="view">
+        <div class="panel">
+          <h3>درخواست‌های دسترسی</h3>
+          <p class="sub">درخواست استفادهٔ یک‌ساعتهٔ کاربران ربات را بررسی کنید. ثبت هر تصمیم در گزارش امنیتی ذخیره می‌شود.</p>
+          <div id="accessRequestsList" class="access-stack"><div class="access-empty">برای دریافت اطلاعات، این بخش را باز کنید.</div></div>
+        </div>
+        <div class="panel">
+          <h3>کاربران ثبت‌شده</h3>
+          <p class="sub">وضعیت ثبت‌نام، تأیید شماره و مهلت آزمایشی کاربران تلگرام.</p>
+          <div id="accessUsersList" class="access-stack"><div class="access-empty">برای دریافت اطلاعات، این بخش را باز کنید.</div></div>
+        </div>
+        <div class="panel">
+          <h3>مجوزهای فعال</h3>
+          <div id="accessGrantsList" class="access-stack"><div class="access-empty">برای دریافت اطلاعات، این بخش را باز کنید.</div></div>
+        </div>
+        <div class="panel">
+          <h3>گزارش امنیت</h3>
+          <div id="accessEventsList" class="access-stack"><div class="access-empty">برای دریافت اطلاعات، این بخش را باز کنید.</div></div>
+        </div>
+        <div id="accessStatus" class="access-status" aria-live="polite"></div>
+      </section>
+
       <section id="viewSecurity" class="view">
         <div class="panel">
           <h3>تغییر رمز عبور</h3>
-          <p class="sub">رمز جدید در حساب Supabase شما به‌روزرسانی می‌شه و از همه دستگاه‌ها با رمز جدید وارد می‌شید.</p>
+          <p class="sub">برای تغییر رمز، نشست مدیر باید با کد دومرحله‌ای معتبر باشد.</p>
           <div class="pass-fields">
-            <div class="field"><label>رمز فعلی</label><input type="password" id="curPass"></div>
-            <div class="field"><label>رمز جدید</label><input type="password" id="newPass"></div>
+            <div class="field"><label>رمز جدید</label><input type="password" id="newPass" autocomplete="new-password"></div>
           </div>
           <div class="row-actions">
             <button class="btn-primary" id="changePassBtn">به‌روزرسانی رمز</button>
@@ -397,29 +448,112 @@ body{background:#f2f6f8}
     el.style.display = 'block';
   }
 
+  let mfaFactorId = '';
+  let mfaChallengeId = '';
+  const setMfaError = message => {
+    const el = document.getElementById('mfaError');
+    el.textContent = message || '';
+    el.style.display = message ? 'block' : 'none';
+  };
+  const resetMfaScreen = () => {
+    document.getElementById('loginScreen').classList.remove('mfa-active');
+    document.getElementById('mfaPanel').style.display = 'none';
+    document.getElementById('mfaQr').style.display = 'none';
+    document.getElementById('mfaSecretWrap').style.display = 'none';
+    document.getElementById('mfaCode').value = '';
+    mfaFactorId = ''; mfaChallengeId = '';
+    setMfaError('');
+  };
+  async function startMfaStep(){
+    const panel = document.getElementById('mfaPanel');
+    const qr = document.getElementById('mfaQr');
+    const secretWrap = document.getElementById('mfaSecretWrap');
+    const help = document.getElementById('mfaHelp');
+    panel.style.display = 'block';
+    document.getElementById('loginScreen').classList.add('mfa-active');
+    setMfaError('');
+    const { data: factorData, error: factorError } = await sb.auth.mfa.listFactors();
+    if (factorError) throw factorError;
+    const verified = (factorData?.totp || []).find(factor => factor.status === 'verified');
+    if (verified){
+      mfaFactorId = verified.id;
+      qr.style.display = 'none'; secretWrap.style.display = 'none';
+      help.textContent = 'کد شش‌رقمی برنامهٔ احراز هویت را وارد کنید.';
+    } else {
+      const { data: enrollment, error: enrollError } = await sb.auth.mfa.enroll({
+        factorType: 'totp', friendlyName: 'Radin News Web Admin'
+      });
+      if (enrollError || !enrollment?.id) throw enrollError || new Error('ثبت عامل دومرحله‌ای انجام نشد.');
+      mfaFactorId = enrollment.id;
+      qr.src = enrollment.totp?.qr_code || '';
+      qr.style.display = qr.src ? 'block' : 'none';
+      document.getElementById('mfaSecret').textContent = enrollment.totp?.secret || '';
+      secretWrap.style.display = enrollment.totp?.secret ? 'block' : 'none';
+      help.textContent = 'این QR را با Google Authenticator یا برنامهٔ مشابه اسکن کنید؛ سپس کد شش‌رقمی را وارد کنید.';
+    }
+    const { data: challenge, error: challengeError } = await sb.auth.mfa.challenge({ factorId: mfaFactorId });
+    if (challengeError || !challenge?.id) throw challengeError || new Error('ساخت چالش دومرحله‌ای انجام نشد.');
+    mfaChallengeId = challenge.id;
+    document.getElementById('mfaCode').focus();
+  }
+  async function checkWebAdminSession(email){
+    const { data, error } = await sb.functions.invoke('radin-account-portal', { body: { action: 'web_admin_check' } });
+    if (error || !data?.ok || !data.admin){
+      await sb.auth.signOut();
+      const reason = data?.error || error?.message || '';
+      showLoginError(reason === 'admin_not_allowed' ? 'این حساب در فهرست مدیران مجاز نیست.' :
+        reason === 'admin_email_unverified' ? 'ابتدا ایمیل حساب مدیر را تأیید کنید.' :
+        'ورود مدیر تأیید نشد. دوباره تلاش کنید.');
+      return;
+    }
+    if (data.mfaRequired){
+      try { await startMfaStep(); }
+      catch (err){ setMfaError('راه‌اندازی احراز هویت دومرحله‌ای انجام نشد: ' + (err?.message || 'خطای نامشخص')); }
+      return;
+    }
+    resetMfaScreen();
+    showDashboard(data.email || email);
+  }
+
   // ---- Login ----
   document.getElementById('loginBtn').addEventListener('click', async () => {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     const btn = document.getElementById('loginBtn');
     document.getElementById('loginError').style.display = 'none';
-
-    if (!email || !password){
-      showLoginError('ایمیل و رمز عبور را وارد کنید.');
-      return;
-    }
+    if (!email || !password){ showLoginError('ایمیل و رمز عبور را وارد کنید.'); return; }
     btn.disabled = true; btn.textContent = 'در حال ورود...';
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    btn.disabled = false; btn.textContent = 'ورود به پنل';
-
-    if (error){
-      showLoginError('ایمیل یا رمز عبور اشتباه است.');
-      return;
-    }
-    showDashboard(data.user.email);
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error){ showLoginError('ایمیل یا رمز عبور اشتباه است.'); return; }
+      await checkWebAdminSession(data.user.email);
+    } catch (err){ showLoginError('ورود مدیر انجام نشد: ' + (err?.message || 'خطای ارتباط')); }
+    finally { btn.disabled = false; btn.textContent = 'ورود به پنل'; }
   });
   document.getElementById('password').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('loginBtn').click();
+  });
+  document.getElementById('mfaVerifyBtn').addEventListener('click', async () => {
+    const button = document.getElementById('mfaVerifyBtn');
+    const code = document.getElementById('mfaCode').value.replace(/\D/g, '').slice(0, 6);
+    if (!mfaFactorId || !mfaChallengeId || code.length !== 6){ setMfaError('کد شش‌رقمی را کامل وارد کنید.'); return; }
+    button.disabled = true; button.textContent = 'در حال تأیید...'; setMfaError('');
+    try {
+      const { error } = await sb.auth.mfa.verify({ factorId: mfaFactorId, challengeId: mfaChallengeId, code });
+      if (error){ setMfaError('کد معتبر نیست یا منقضی شده؛ دوباره تلاش کنید.'); return; }
+      const { data: gate, error: gateError } = await sb.functions.invoke('radin-account-portal', { body: { action: 'web_admin_check' } });
+      if (gateError || !gate?.ok || gate.mfaRequired) throw new Error('تأیید دومرحله‌ای هنوز کامل نشده است.');
+      resetMfaScreen(); showDashboard(gate.email);
+    } catch (err){ setMfaError(err?.message || 'تأیید دومرحله‌ای انجام نشد.'); }
+    finally { button.disabled = false; button.textContent = 'تأیید کد و ورود'; }
+  });
+  document.getElementById('mfaCode').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('mfaVerifyBtn').click();
+  });
+  document.getElementById('mfaBackBtn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    resetMfaScreen();
+    document.getElementById('password').value = '';
   });
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -436,6 +570,7 @@ body{background:#f2f6f8}
       document.getElementById(link.dataset.view).classList.add('active');
       document.getElementById('viewTitle').textContent = link.textContent.trim();
       if(link.dataset.view==='viewBotSettings') loadBotOperations();
+      if(link.dataset.view==='viewUserAccess') loadUserAccess();
     });
   });
 
@@ -875,7 +1010,6 @@ body{background:#f2f6f8}
 
   // ---- Change password (real Supabase auth) ----
   document.getElementById('changePassBtn').addEventListener('click', async () => {
-    const cur = document.getElementById('curPass').value;
     const next = document.getElementById('newPass').value;
     const errEl = document.getElementById('passError');
     const okEl = document.getElementById('passSaveMsg');
@@ -887,10 +1021,9 @@ body{background:#f2f6f8}
       errEl.style.display = 'block';
       return;
     }
-    // تایید رمز فعلی با ورود مجدد
-    const { error: reauthError } = await sb.auth.signInWithPassword({ email: currentEmail, password: cur });
-    if (reauthError){
-      errEl.textContent = 'رمز فعلی درست نیست.';
+    const { data: assurance } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assurance?.currentLevel !== 'aal2'){
+      errEl.textContent = 'برای تغییر رمز ابتدا دوباره احراز هویت دومرحله‌ای کنید.';
       errEl.style.display = 'block';
       return;
     }
@@ -900,18 +1033,79 @@ body{background:#f2f6f8}
       errEl.style.display = 'block';
       return;
     }
-    document.getElementById('curPass').value = '';
     document.getElementById('newPass').value = '';
     okEl.style.display = 'block';
     setTimeout(() => okEl.style.display = 'none', 3000);
   });
 
+  // ---- Web admin: Telegram users, temporary access and security audit ----
+  const accessHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const accessDate = value => value ? new Date(value).toLocaleString('fa-IR', { timeZone: 'Asia/Tehran' }) : '—';
+  const accessStatusNames = { pending: 'در انتظار', approved: 'تأییدشده', rejected: 'ردشده', active: 'فعال', revoked: 'لغوشده' };
+  function renderUserAccess(panel){
+    const requests = panel?.requests || [], users = panel?.users || [], grants = panel?.grants || [], events = panel?.securityEvents || [];
+    const pending = requests.filter(item => item.status === 'pending');
+    document.getElementById('accessRequestsList').innerHTML = pending.length ? pending.map(item => {
+      const id = accessHtml(item.id), user = accessHtml(item.telegram_user_id);
+      return `<article class="access-card"><strong>درخواست ${accessHtml(accessStatusNames[item.status] || item.status)} · ${accessHtml(item.requested_minutes || 60)} دقیقه</strong>
+        <div class="meta">شناسه تلگرام: ${user} · چت: ${accessHtml(item.chat_id)} · ثبت: ${accessHtml(accessDate(item.created_at))}</div>
+        <div class="actions"><button class="btn-primary" data-access-action="approve" data-id="${id}">تأیید درخواست</button>
+        <button class="btn-secondary" data-access-action="reject" data-id="${id}">رد درخواست</button></div></article>`;
+    }).join('') : '<div class="access-empty">درخواست در انتظار بررسی وجود ندارد.</div>';
+    document.getElementById('accessUsersList').innerHTML = users.length ? users.map(user => {
+      const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'کاربر بدون نام';
+      return `<article class="access-card"><strong>${accessHtml(name)} ${user.username ? '· @' + accessHtml(user.username) : ''}</strong>
+        <div class="meta">شناسه تلگرام: ${accessHtml(user.telegram_user_id)} · ثبت‌نام: ${accessHtml(accessDate(user.consent_at))} ·
+        تأیید تلفن: ${user.phone_verified_at ? 'بله' : 'خیر'} · پایان آزمایشی: ${accessHtml(accessDate(user.trial_expires_at))}</div></article>`;
+    }).join('') : '<div class="access-empty">هنوز کاربری ثبت نشده است.</div>';
+    const active = grants.filter(item => item.status === 'active' && (!item.expires_at || Date.parse(item.expires_at) > Date.now()));
+    document.getElementById('accessGrantsList').innerHTML = active.length ? active.map(item => `
+      <article class="access-card"><strong>دسترسی فعال · ${accessHtml(item.telegram_user_id)}</strong>
+      <div class="meta">شروع: ${accessHtml(accessDate(item.starts_at))} · پایان: ${accessHtml(accessDate(item.expires_at))}</div>
+      <div class="actions"><button class="btn-secondary" data-access-action="revoke" data-id="${accessHtml(item.id)}">لغو دسترسی</button></div></article>`).join('') :
+      '<div class="access-empty">دسترسی موقت فعالی وجود ندارد.</div>';
+    document.getElementById('accessEventsList').innerHTML = events.length ? events.slice(0, 40).map(item => `
+      <article class="access-card"><strong>${accessHtml(item.event_type)}</strong>
+      <div class="meta">زمان: ${accessHtml(accessDate(item.created_at))} · کاربر: ${accessHtml(item.subject_user_id || '—')} · مدیر: ${accessHtml(item.actor_user_id || 'سیستم')}</div>
+      <div class="meta">${accessHtml(JSON.stringify(item.details || {}))}</div></article>`).join('') :
+      '<div class="access-empty">گزارش امنیتی ثبت نشده است.</div>';
+    document.querySelectorAll('#viewUserAccess [data-access-action]').forEach(button => {
+      button.onclick = async () => {
+        const action = button.dataset.accessAction, id = button.dataset.id;
+        const decision = action === 'approve' || action === 'reject';
+        const label = action === 'approve' ? 'درخواست یک‌ساعته تأیید شود؟' : action === 'reject' ? 'درخواست رد شود؟' : 'دسترسی موقت این کاربر لغو شود؟';
+        if (!confirm(label)) return;
+        const reason = action === 'revoke' || action === 'reject' ? (prompt('توضیح کوتاه (اختیاری):', '') || '') : '';
+        button.disabled = true;
+        const status = document.getElementById('accessStatus');
+        status.classList.remove('access-error'); status.textContent = 'در حال ثبت تصمیم...';
+        try {
+          const actionName = action === 'revoke' ? 'web_admin_revoke_grant' : 'web_admin_decide_request';
+          const body = action === 'revoke' ? { action: actionName, grantId: id, reason } : { action: actionName, requestId: id, decision: action, reason };
+          const { data, error } = await sb.functions.invoke('radin-account-portal', { body });
+          if (error || !data?.ok) throw new Error(data?.error || error?.message || 'عملیات انجام نشد');
+          renderUserAccess(data.adminPanel || {});
+          status.textContent = 'تغییر با موفقیت ثبت شد.';
+        } catch (error){ status.classList.add('access-error'); status.textContent = 'ثبت تغییر انجام نشد: ' + (error?.message || 'خطای نامشخص'); }
+        finally { button.disabled = false; }
+      };
+    });
+  }
+  async function loadUserAccess(){
+    const status = document.getElementById('accessStatus');
+    status.classList.remove('access-error'); status.textContent = 'در حال دریافت وضعیت کاربران…';
+    try {
+      const { data, error } = await sb.functions.invoke('radin-account-portal', { body: { action: 'web_admin_dashboard' } });
+      if (error || !data?.ok || !data.adminPanel) throw new Error(data?.error || error?.message || 'دریافت اطلاعات انجام نشد');
+      renderUserAccess(data.adminPanel);
+      status.textContent = 'اطلاعات زندهٔ پنل به‌روزرسانی شد.';
+    } catch (error){ status.classList.add('access-error'); status.textContent = 'بارگذاری ناموفق بود: ' + (error?.message || 'خطای نامشخص'); }
+  }
+
   // ---- Auto-login if session already active ----
   (async () => {
     const { data: { session } } = await sb.auth.getSession();
-    if (session){
-      showDashboard(session.user.email);
-    }
+    if (session) await checkWebAdminSession(session.user.email);
   })();
 })();
 </script>
