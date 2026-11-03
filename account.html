@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071629">
+  <title>حساب رادین نیوز</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://telegram.org/js/telegram-web-app.js?64"></script>
+  <style>
+    :root{color-scheme:dark;--bg:#071629;--panel:#0e223a;--panel2:#122b48;--ink:#f5f8fc;--muted:#a8b8cb;--line:#ffffff19;--cyan:#58e0d0;--blue:#65a7ff;--gold:#f5c451;--red:#ff7a88;--green:#63e2b2}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 90% 0,#17456866,transparent 45%),var(--bg);color:var(--ink);font-family:Vazirmatn,Arial,sans-serif;line-height:1.75;min-height:100vh}
+    a{color:var(--cyan);text-decoration:none}button{font:inherit;cursor:pointer}.wrap{width:min(960px,calc(100% - 28px));margin:0 auto;padding:28px 0 60px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}.brand{display:flex;align-items:center;gap:12px}.logo{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(140deg,var(--cyan),#3585ed);color:#071629;font-weight:900;font-size:20px;box-shadow:0 10px 32px #58e0d033}.brand b{display:block;font-size:16px}.brand small{display:block;color:var(--muted);font-size:12px}.top-actions{display:flex;gap:8px;flex-wrap:wrap}.button,.tab{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#ffffff0d;color:var(--ink);font-weight:700}.button.primary{background:var(--cyan);color:#062033;border-color:transparent}.button.danger{color:#ffdce0;background:#ff66731c;border-color:#ff667344}.button:disabled{opacity:.55;cursor:wait}
+    .intro{padding:22px 24px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(145deg,#163350d9,#0d2037e8);box-shadow:0 22px 70px #0003;margin-bottom:16px}.intro h1{margin:0 0 5px;font-size:clamp(23px,4vw,34px);line-height:1.4}.intro p{margin:0;color:var(--muted);font-size:14px}
+    .tabs{display:flex;gap:9px;overflow:auto;margin:16px 0}.tab{white-space:nowrap}.tab.active{background:#58e0d022;border-color:#58e0d077;color:#9cfff1}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#102741,#0c1f35);padding:18px;box-shadow:0 14px 45px #0002}.card h2,.card h3{margin:0 0 10px}.card h2{font-size:18px}.card h3{font-size:15px}.muted{color:var(--muted)}.small{font-size:12px}.status{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;background:#ffffff0b;font-size:13px;font-weight:800}.status:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}.status.active{color:var(--green);background:#63e2b214}.status.wait{color:var(--gold);background:#f5c45116}.status.off{color:#c2ccda}
+    .profile{display:flex;align-items:center;gap:14px}.avatar{width:52px;height:52px;border-radius:18px;display:grid;place-items:center;background:#65a7ff22;color:#8fc3ff;font-size:22px;font-weight:900;flex:none}.profile b{display:block;font-size:16px}.profile small{color:var(--muted)}
+    .stack{display:grid;gap:12px}.item{padding:13px;border:1px solid var(--line);border-radius:14px;background:#ffffff06;display:flex;gap:12px;align-items:flex-start}.item img{width:64px;height:64px;object-fit:cover;border-radius:10px;background:#071629}.item-main{min-width:0;flex:1}.item b{display:block;line-height:1.6}.item small{display:block;color:var(--muted);font-size:12px;margin-top:3px}.item-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.item-actions .button{padding:6px 10px;font-size:12px}.notice{padding:13px 15px;border-radius:14px;border:1px solid #f5c45144;background:#f5c45112;color:#ffebba;margin-bottom:14px}.notice.error{border-color:#ff7a8844;background:#ff7a8812;color:#ffdce0}.notice.success{border-color:#63e2b244;background:#63e2b212;color:#caffea}
+    .access-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.access-row p{margin:8px 0 0}.empty{padding:18px;border-radius:13px;border:1px dashed var(--line);color:var(--muted);text-align:center}
+    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:620px}th,td{text-align:right;padding:10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px}th{color:#c9d8e9;font-size:12px}td small{color:var(--muted);display:block}.table-actions{display:flex;gap:6px;flex-wrap:wrap}.table-actions .button{font-size:12px;padding:6px 9px}
+    .external,.loading{min-height:70vh;display:grid;place-items:center}.external-box,.loading-box{width:min(540px,100%);text-align:center;padding:28px;border-radius:22px;border:1px solid var(--line);background:#102741e8;box-shadow:0 20px 70px #0004}.external-box .logo{margin:0 auto 16px}.external-box h1{font-size:24px;margin:0 0 10px}.external-box p{color:var(--muted);margin:0 0 20px}.spinner{width:34px;height:34px;border:3px solid #ffffff30;border-top-color:var(--cyan);border-radius:50%;margin:0 auto 13px;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    .hidden{display:none!important}.footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}
+    @media(max-width:700px){.wrap{width:min(100% - 20px,960px);padding-top:16px}.grid{grid-template-columns:1fr}.intro{padding:18px}.card{padding:15px}.top{align-items:flex-start}.brand small{max-width:180px}.top-actions .button{padding:8px 10px;font-size:12px}.item{align-items:flex-start}.item img{width:52px;height:52px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="loading" class="loading">
+      <div class="loading-box"><div class="spinner"></div><b>در حال ورود امن به حساب…</b><div class="muted small">شناسه تلگرام روی سرور بررسی می‌شود.</div></div>
+    </div>
+    <div id="external" class="external hidden">
+      <div class="external-box">
+        <div class="logo">ر</div>
+        <h1>پنل شخصی رادین نیوز</h1>
+        <p>برای ورود امن با حساب تلگرام خود، این صفحه را از داخل ربات باز کنید. هر حساب فقط اطلاعات و فعالیت‌های همان شناسه تلگرام را می‌بیند.</p>
+        <a id="botLink" class="button primary" href="https://t.me/khabarradinnewbot?start=panel">بازگشت به ربات و ورود به پنل</a>
+      </div>
+    </div>
+    <div id="app" class="hidden">
+      <header class="top">
+        <div class="brand"><div class="logo">ر</div><div><b>حساب رادین نیوز</b><small>پنل شخصی و دسترسی‌ها</small></div></div>
+        <div class="top-actions">
+          <button class="button" id="refreshBtn" type="button">تازه‌سازی</button>
+          <a class="button" href="https://t.me/khabarradinnewbot" target="_blank" rel="noopener">بازگشت به ربات</a>
+        </div>
+      </header>
+      <section class="intro"><h1 id="hello">پنل کاربری</h1><p>درخواست‌ها و کارهایی که با همین حساب تلگرام در ربات انجام داده‌اید، اینجا نمایش داده می‌شود.</p></section>
+      <div id="notice" class="hidden"></div>
+      <nav id="tabs" class="tabs hidden">
+        <button class="tab active" data-tab="user" type="button">حساب من</button>
+        <button class="tab" data-tab="admin" type="button">امنیت و دسترسی‌ها</button>
+      </nav>
+      <main>
+        <section id="userPanel">
+          <div class="grid">
+            <article class="card">
+              <h2>حساب تلگرام</h2>
+              <div id="profile" class="profile"></div>
+            </article>
+            <article class="card">
+              <h2>وضعیت دسترسی</h2>
+              <div id="access"></div>
+            </article>
+          </div>
+          <article id="requestCard" class="card hidden" style="margin-top:14px">
+            <div class="access-row"><div><h2>درخواست دسترسی یک‌ساعته</h2><p class="muted small">درخواست به مدیر می‌رسد. پس از تأیید، دسترسی ربات برای همین حساب تلگرام به مدت ۶۰ دقیقه فعال می‌شود.</p></div><button id="requestBtn" class="button primary" type="button">ثبت درخواست</button></div>
+          </article>
+          <div class="grid" style="margin-top:14px">
+            <article class="card"><h2>درخواست‌های من</h2><div id="myRequests" class="stack"></div></article>
+            <article class="card"><h2>کارهای اخیر ربات برای من</h2><div id="myActivity" class="stack"></div></article>
+          </div>
+          <article class="card" style="margin-top:14px"><h2>خبرهای ارسال‌شده از حساب من</h2><div id="myNews" class="stack"></div></article>
+        </section>
+        <section id="adminPanel" class="hidden">
+          <div class="grid">
+            <article class="card"><h2>درخواست‌های یک‌ساعته</h2><div id="adminRequests" class="stack"></div></article>
+            <article class="card"><h2>دسترسی‌های اخیر</h2><div id="adminGrants" class="stack"></div></article>
+          </div>
+          <article class="card" style="margin-top:14px"><h2>حساب‌های ثبت‌شده</h2><div id="adminUsers" class="table-wrap"></div></article>
+          <article class="card" style="margin-top:14px"><h2>رخدادهای امنیتی</h2><div id="securityEvents" class="stack"></div></article>
+        </section>
+      </main>
+      <div class="footer">پنل کاربری به شناسه تلگرام متصل است؛ شناسه واردشده از سمت مرورگر برای انتخاب اطلاعات پذیرفته نمی‌شود.</div>
+    </div>
+  </div>
+<script>
+(function(){
+  "use strict";
+  var API = "https://gtbrkufbsllbosdyogfx.supabase.co/functions/v1/radin-account-portal";
+  var BOT_LINK = "https://t.me/khabarradinnewbot?start=panel";
+  var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+  var sessionToken = "";
+  var dashboard = null;
+  var loading = document.getElementById("loading");
+  var app = document.getElementById("app");
+  var external = document.getElementById("external");
+  var notice = document.getElementById("notice");
+
+  function escapeHtml(value){
+    return String(value == null ? "" : value).replace(/[&<>"']/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function dateLabel(value){
+    if(!value) return "—";
+    var date = new Date(value);
+    if(Number.isNaN(date.getTime())) return "—";
+    return new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Tehran"}).format(date);
+  }
+  function empty(text){return '<div class="empty">'+escapeHtml(text)+'</div>';}
+  function showNotice(text,kind){
+    notice.textContent = text;
+    notice.className = "notice"+(kind ? " "+kind : "");
+  }
+  function showOutside(text){
+    loading.classList.add("hidden");
+    app.classList.add("hidden");
+    external.classList.remove("hidden");
+    var p = external.querySelector("p");
+    if(text) p.textContent = text;
+    document.getElementById("botLink").href = BOT_LINK;
+  }
+  function showApp(){
+    loading.classList.add("hidden");
+    external.classList.add("hidden");
+    app.classList.remove("hidden");
+  }
+  async function apiCall(payload, token){
+    var headers = {"Content-Type":"application/json"};
+    if(token) headers.Authorization = "Bearer "+token;
+    var response = await fetch(API,{method:"POST",headers:headers,body:JSON.stringify(payload),cache:"no-store"});
+    var data = await response.json().catch(function(){return {};});
+    if(!response.ok || data.ok === false) {
+      var error = new Error(data.error || "server_error");
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  }
+  function displayName(user){
+    var name = [user.firstName,user.lastName].filter(Boolean).join(" ").trim();
+    return name || (user.username ? "@"+user.username : "کاربر تلگرام");
+  }
+  function statusLabel(status){
+    var map = {pending:"در انتظار بررسی",approved:"تأیید شده",rejected:"رد شده",active:"فعال",revoked:"لغوشده"};
+    return map[status] || status || "نامشخص";
+  }
+  function accessName(access){
+    var map = {admin:"مدیر",trial:"آزمایشی ۲۴ساعته",one_hour:"دسترسی یک‌ساعته",expired:"پایان‌یافته",unverified:"در انتظار احراز هویت",inactive:"غیرفعال"};
+    return map[access && access.kind] || "غیرفعال";
+  }
+  function renderProfile(user){
+    var name = displayName(user);
+    document.getElementById("hello").textContent = "سلام "+name;
+    var avatarText = (user.firstName || user.username || "ر").slice(0,1);
+    document.getElementById("profile").innerHTML =
+      '<div class="avatar">'+escapeHtml(avatarText)+'</div><div><b>'+escapeHtml(name)+'</b>'+
+      '<small>شناسه تلگرام: '+escapeHtml(user.telegramUserId)+'</small>'+
+      (user.username ? '<small>@'+escapeHtml(user.username)+'</small>' : "")+'</div>';
+  }
+  function renderAccess(access,account){
+    var active = Boolean(access && access.active);
+    var statusClass = active ? "active" : (access && access.kind === "unverified" ? "wait" : "off");
+    var desc = active
+      ? "دسترسی "+accessName(access)+" تا "+dateLabel(access.expiresAt)+" برقرار است."
+      : (access && access.kind === "unverified"
+        ? "برای فعال‌شدن حساب، از گفت‌وگوی خصوصی ربات شماره همین حساب تلگرام را تأیید کنید."
+        : "در حال حاضر دسترسی فعال ندارید. می‌توانید درخواست یک‌ساعته ثبت کنید.");
+    document.getElementById("access").innerHTML =
+      '<span class="status '+statusClass+'">'+escapeHtml(accessName(access))+'</span>'+
+      '<p class="muted small">'+escapeHtml(desc)+'</p>'+
+      (account && account.phoneVerifiedAt ? '<p class="muted small">تأیید حساب: '+escapeHtml(dateLabel(account.phoneVerifiedAt))+'</p>' : "");
+    var canRequest = account && account.phoneVerifiedAt && (!access || !access.active);
+    document.getElementById("requestCard").classList.toggle("hidden",!canRequest);
+  }
+  function renderRequests(rows){
+    var target = document.getElementById("myRequests");
+    if(!rows || !rows.length){target.innerHTML=empty("هنوز درخواستی ثبت نشده است.");return;}
+    target.innerHTML=rows.map(function(row){
+      return '<div class="item"><div class="item-main"><b>درخواست دسترسی ۶۰دقیقه‌ای</b>'+
+        '<small>وضعیت: '+escapeHtml(statusLabel(row.status))+'</small>'+
+        '<small>ثبت: '+escapeHtml(dateLabel(row.created_at))+(row.decided_at ? " · بررسی: "+escapeHtml(dateLabel(row.decided_at)) : "")+'</small>'+
+        (row.decision_reason ? '<small>توضیح مدیر: '+escapeHtml(row.decision_reason)+'</small>' : "")+
+        '</div></div>';
+    }).join("");
+  }
+  function renderActivity(rows){
+    var target=document.getElementById("myActivity");
+    var labels={received:"خبر از حساب شما دریافت شد",graphic_ready:"گرافیک آماده شد",preview_sent:"پیش‌نمایش ارسال شد",scheduled:"زمان‌بندی شد",schedule_reordered:"ترتیب صف تغییر کرد",schedule_cancelled:"از صف خارج شد",caption_edited:"کپشن ویرایش شد",headline_edited:"تیتر ویرایش شد",published:"منتشر شد",rejected:"خبر رد شد",duplicate_detected:"خبر تکراری بود",graphic_failed:"ساخت گرافیک ناموفق بود",publish_failed:"انتشار ناموفق بود",manual_retry:"تلاش مجدد انجام شد",graphic_regenerated:"گرافیک دوباره ساخته شد"};
+    if(!rows || !rows.length){target.innerHTML=empty("هنوز فعالیتی برای خبرهای این حساب ثبت نشده است.");return;}
+    target.innerHTML=rows.map(function(row){
+      return '<div class="item"><div class="item-main"><b>'+escapeHtml(labels[row.event_type] || "فعالیت ربات")+'</b><small>'+escapeHtml(dateLabel(row.created_at))+'</small></div></div>';
+    }).join("");
+  }
+  function safeGraphicUrl(value){
+    try{
+      var url=new URL(value);
+      if(url.protocol==="https:" && url.hostname==="gtbrkufbsllbosdyogfx.supabase.co") return url.href;
+    }catch(_){}
+    return "";
+  }
+  function renderNews(rows){
+    var target=document.getElementById("myNews");
+    if(!rows || !rows.length){target.innerHTML=empty("هنوز خبری از این حساب برای ربات فرستاده نشده است.");return;}
+    target.innerHTML=rows.map(function(row){
+      var title=row.rewritten_title || row.title || "خبر بدون عنوان";
+      var status=row.published ? "منتشر شده" : statusLabel(row.review_status);
+      var image=safeGraphicUrl(row.graphic_image_url);
+      return '<div class="item">'+(image?'<img src="'+escapeHtml(image)+'" alt="پیش‌نمایش خبر" loading="lazy">':"")+
+        '<div class="item-main"><b>'+escapeHtml(title)+'</b><small>'+escapeHtml(status)+' · '+escapeHtml(dateLabel(row.created_at))+'</small>'+
+        (row.scheduled_at ? '<small>زمان‌بندی: '+escapeHtml(dateLabel(row.scheduled_at))+'</small>' : "")+'</div></div>';
+    }).join("");
+  }
+  function profileFor(userId,users){
+    for(var i=0;i<(users||[]).length;i++) if(String(users[i].telegram_user_id)===String(userId)) return users[i];
+    return {};
+  }
+  function renderAdmin(panel){
+    var requests=panel.requests||[], users=panel.users||[], grants=panel.grants||[], events=panel.securityEvents||[];
+    var requestHtml=requests.map(function(row){
+      var user=profileFor(row.telegram_user_id,users);
+      var name=displayName({firstName:user.first_name,lastName:user.last_name,username:user.username});
+      var actions=row.status==="pending"
+        ? '<div class="item-actions"><button class="button primary" data-admin-action="approve" data-id="'+escapeHtml(row.id)+'">تأیید و فعال‌سازی ۱ ساعت</button><button class="button danger" data-admin-action="reject" data-id="'+escapeHtml(row.id)+'">رد درخواست</button></div>'
+        : "";
+      return '<div class="item"><div class="item-main"><b>'+escapeHtml(name)+'</b><small>شناسه: '+escapeHtml(row.telegram_user_id)+(user.username ? " · @"+escapeHtml(user.username) : "")+'</small><small>ثبت: '+escapeHtml(dateLabel(row.created_at))+' · '+escapeHtml(statusLabel(row.status))+'</small>'+actions+'</div></div>';
+    }).join("");
+    document.getElementById("adminRequests").innerHTML=requestHtml||empty("درخواستی ثبت نشده است.");
+    var now=Date.now();
+    var grantHtml=grants.map(function(row){
+      var user=profileFor(row.telegram_user_id,users);
+      var name=displayName({firstName:user.first_name,lastName:user.last_name,username:user.username});
+      var isActive=row.status==="active" && new Date(row.expires_at).getTime()>now;
+      var status=isActive ? "فعال تا "+dateLabel(row.expires_at) : (row.status==="revoked" ? "لغوشده" : "پایان‌یافته");
+      var action=isActive ? '<div class="item-actions"><button class="button danger" data-admin-action="revoke" data-id="'+escapeHtml(row.id)+'">لغو دسترسی</button></div>' : "";
+      return '<div class="item"><div class="item-main"><b>'+escapeHtml(name)+'</b><small>شناسه: '+escapeHtml(row.telegram_user_id)+'</small><small>'+escapeHtml(status)+'</small>'+action+'</div></div>';
+    }).join("");
+    document.getElementById("adminGrants").innerHTML=grantHtml||empty("دسترسی یک‌ساعته‌ای ثبت نشده است.");
+    if(users.length){
+      document.getElementById("adminUsers").innerHTML='<table><thead><tr><th>کاربر تلگرام</th><th>احراز هویت</th><th>دوره آزمایشی</th><th>آخرین تغییر</th></tr></thead><tbody>'+
+        users.map(function(user){
+          var name=displayName({firstName:user.first_name,lastName:user.last_name,username:user.username});
+          var verified=user.phone_verified_at ? "تأییدشده" : "در انتظار تأیید";
+          var trial=user.trial_expires_at ? dateLabel(user.trial_expires_at) : "ندارد";
+          return '<tr><td>'+escapeHtml(name)+'<small>'+escapeHtml(user.telegram_user_id)+(user.username ? " · @"+escapeHtml(user.username) : "")+'</small></td><td>'+escapeHtml(verified)+'</td><td>'+escapeHtml(trial)+'</td><td>'+escapeHtml(dateLabel(user.updated_at))+'</td></tr>';
+        }).join("")+'</tbody></table>';
+    }else document.getElementById("adminUsers").innerHTML=empty("حساب ثبت‌شده‌ای نیست.");
+    var eventLabels={session_started:"ورود امن به پنل",access_request_created:"درخواست یک‌ساعته ثبت شد",admin_denied:"تلاش برای دسترسی غیرمجاز",request_approved:"درخواست تأیید شد",request_rejected:"درخواست رد شد",grant_revoked:"دسترسی لغو شد"};
+    document.getElementById("securityEvents").innerHTML=events.length ? events.map(function(row){
+      return '<div class="item"><div class="item-main"><b>'+escapeHtml(eventLabels[row.event_type]||row.event_type)+'</b><small>عامل: '+escapeHtml(row.actor_user_id||"—")+' · حساب: '+escapeHtml(row.subject_user_id||"—")+'</small><small>'+escapeHtml(dateLabel(row.created_at))+'</small></div></div>';
+    }).join("") : empty("رخداد امنیتی ثبت نشده است.");
+  }
+  function render(data){
+    dashboard=data;
+    showApp();
+    renderProfile(data.account||{});
+    renderAccess(data.access||{},data.account||{});
+    renderRequests(data.requests||[]);
+    renderActivity(data.activity||[]);
+    renderNews(data.newsItems||[]);
+    if(data.admin){
+      document.getElementById("tabs").classList.remove("hidden");
+      renderAdmin(data.adminPanel||{});
+      document.getElementById("adminPanel").classList.remove("hidden");
+    }
+  }
+  async function bootstrap(){
+    if(!tg || !tg.initData){
+      showOutside("ورود مستقیم با مرورگر امکان‌پذیر نیست. از دکمه زیر وارد ربات شوید و پنل را همان‌جا باز کنید.");
+      return;
+    }
+    try{
+      if(tg.ready) tg.ready();
+      if(tg.expand) tg.expand();
+      if(tg.setHeaderColor) tg.setHeaderColor("#071629");
+      var result=await apiCall({action:"bootstrap",initData:tg.initData},"");
+      if(result.registrationRequired){
+        showOutside("برای ساخت پنل، ابتدا در ربات ثبت‌نام و شماره همین حساب تلگرام را تأیید کنید؛ سپس دوباره پنل را باز کنید.");
+        return;
+      }
+      sessionToken=result.sessionToken||"";
+      render(result.dashboard||{});
+    }catch(error){
+      if(error.status===401) showOutside("اعتبار ورود تلگرام منقضی یا نامعتبر است. پنل را از داخل گفت‌وگوی ربات دوباره باز کنید.");
+      else showOutside("فعلاً اتصال امن برقرار نشد. چند لحظه بعد از داخل ربات دوباره وارد شوید.");
+    }
+  }
+  async function refresh(){
+    if(!sessionToken)return;
+    try{
+      var result=await apiCall({action:"dashboard"},sessionToken);
+      render(result.dashboard||{});
+      showNotice("اطلاعات تازه شد.","success");
+      setTimeout(function(){notice.classList.add("hidden");},2200);
+    }catch(error){
+      if(error.status===401){
+        sessionToken="";
+        showNotice("نشست امن تمام شده است؛ پنل را ببندید و دوباره از ربات باز کنید.","error");
+      }else showNotice("دریافت اطلاعات کامل نشد. دوباره تازه‌سازی کنید.","error");
+    }
+  }
+  document.getElementById("refreshBtn").addEventListener("click",refresh);
+  document.getElementById("requestBtn").addEventListener("click",async function(event){
+    var button=event.currentTarget;
+    button.disabled=true;button.textContent="در حال ثبت…";
+    try{
+      var result=await apiCall({action:"request_one_hour"},sessionToken);
+      render(result.dashboard||{});
+      showNotice("درخواست یک‌ساعته برای مدیر ارسال شد.","success");
+    }catch(error){
+      var messages={access_already_active:"برای این حساب دسترسی فعال است.",phone_verification_required:"ابتدا شماره همین حساب را در ربات تأیید کنید.",request_already_pending_or_failed:"درخواست قبلی هنوز در انتظار بررسی است یا ثبت آن ناموفق بود."};
+      showNotice(messages[error.message]||"ثبت درخواست انجام نشد. دوباره تلاش کنید.","error");
+    }finally{button.disabled=false;button.textContent="ثبت درخواست";}
+  });
+  document.getElementById("tabs").addEventListener("click",function(event){
+    var tab=event.target.closest("[data-tab]");if(!tab)return;
+    document.querySelectorAll(".tab").forEach(function(node){node.classList.toggle("active",node===tab);});
+    var admin=tab.getAttribute("data-tab")==="admin";
+    document.getElementById("userPanel").classList.toggle("hidden",admin);
+    document.getElementById("adminPanel").classList.toggle("hidden",!admin);
+  });
+  document.getElementById("adminPanel").addEventListener("click",async function(event){
+    var button=event.target.closest("[data-admin-action]");if(!button)return;
+    var action=button.getAttribute("data-admin-action"), id=button.getAttribute("data-id");
+    var question=action==="approve"?"دسترسی این کاربر را برای ۶۰ دقیقه فعال می‌کنید؟":action==="reject"?"این درخواست را رد می‌کنید؟":"دسترسی این کاربر لغو شود؟";
+    if(!window.confirm(question))return;
+    button.disabled=true;
+    try{
+      var payload=action==="revoke"
+        ? {action:"revoke_grant",grantId:id,reason:"لغو از پنل مدیر"}
+        : {action:"decide_request",requestId:id,decision:action};
+      var result=await apiCall(payload,sessionToken);
+      render(result.dashboard||{});
+      document.getElementById("adminPanel").classList.remove("hidden");
+      document.getElementById("userPanel").classList.add("hidden");
+      document.querySelectorAll(".tab").forEach(function(node){node.classList.toggle("active",node.getAttribute("data-tab")==="admin");});
+      showNotice(action==="approve"?"دسترسی یک‌ساعته فعال شد.":"تغییر دسترسی ثبت شد.","success");
+    }catch(_){showNotice("تغییر دسترسی انجام نشد؛ وضعیت درخواست یا اتصال را بررسی کنید.","error");button.disabled=false;}
+  });
+  bootstrap();
+})();
+</script>
+</body>
+</html>
