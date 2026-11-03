@@ -28,6 +28,16 @@ const fromBase64url = (value: string) => {
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 };
 
+const jwtClaims = (token: string) => {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    return JSON.parse(new TextDecoder().decode(fromBase64url(payload)));
+  } catch {
+    return null;
+  }
+};
+
 const hex = (bytes: Uint8Array) =>
   Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
 
@@ -227,8 +237,40 @@ Deno.serve(async (req: Request) => {
   };
 
   const action = String(body?.action || "");
+  const getBearerToken = () => {
+    const authorization = req.headers.get("authorization") || "";
+    return authorization.match(/^Bearer\s+(.+)$/i)?.[1] || "";
+  };
+  const authorizeWebAdmin = async (token: string) => {
+    if (!token || token.length > 4000) return { ok: false as const, status: 401, error: "session_invalid" };
+    const { data, error } = await db.auth.getUser(token);
+    const user = data?.user;
+    if (error || !user) return { ok: false as const, status: 401, error: "session_invalid" };
+    const email = String(user.email || "").trim().toLowerCase();
+    if (!email || !user.email_confirmed_at) {
+      return { ok: false as const, status: 403, error: "admin_email_unverified" };
+    }
+    const { data: allowlisted, error: allowlistError } = await db.from("web_admin_emails")
+      .select("email").eq("email", email).eq("active", true).maybeSingle();
+    if (allowlistError) {
+      console.error("Web admin allowlist lookup failed", allowlistError.message);
+      return { ok: false as const, status: 500, error: "admin_auth_unavailable" };
+    }
+    if (!allowlisted) return { ok: false as const, status: 403, error: "admin_not_allowed" };
+    const claims = jwtClaims(token);
+    return { ok: true as const, email, userId: String(user.id), aal: String(claims?.aal || "aal1") };
+  };
+
+  if (action === "web_admin_check") {
+    const webAdmin = await authorizeWebAdmin(getBearerToken());
+    if (!webAdmin.ok) return json({ ok: false, error: webAdmin.error }, webAdmin.status);
+    return json({ ok: true, admin: true, email: webAdmin.email, mfaRequired: webAdmin.aal !== "aal2" });
+  }
+
   let userId = "";
   let sessionToken = "";
+  let webAdminEmail = "";
+  let isWebAdmin = false;
   if (action === "bootstrap") {
     const rawInitData = String(body?.initData || "");
     const identity = await verifyTelegramInitData(rawInitData, botToken);
@@ -271,14 +313,23 @@ Deno.serve(async (req: Request) => {
       authentication_method: identity.verifiedBy,
     });
   } else {
-    const authorization = req.headers.get("authorization") || "";
-    const match = authorization.match(/^Bearer\s+(.+)$/i);
-    const verified = match ? await verifySession(match[1], serviceKey) : null;
-    if (!verified) return json({ ok: false, error: "session_invalid" }, 401);
-    userId = verified.userId;
+    const token = getBearerToken();
+    const verified = !action.startsWith("web_admin_") ? await verifySession(token, serviceKey) : null;
+    if (verified) {
+      userId = verified.userId;
+    } else {
+      if (!action.startsWith("web_admin_")) return json({ ok: false, error: "session_invalid" }, 401);
+      const webAdmin = await authorizeWebAdmin(token);
+      if (!webAdmin.ok) return json({ ok: false, error: webAdmin.error }, webAdmin.status);
+      if (webAdmin.aal !== "aal2") return json({ ok: false, error: "admin_mfa_required" }, 403);
+      webAdminEmail = webAdmin.email;
+      isWebAdmin = true;
+      // A non-Telegram identity must not be used as a Telegram bigint actor.
+      userId = "0";
+    }
   }
 
-  const isAdmin = adminIds().has(userId);
+  const isAdmin = isWebAdmin || adminIds().has(userId);
   const accountQuery = await db.from("telegram_trial_accounts")
     .select("telegram_user_id,chat_id,first_name,last_name,username,consent_at,phone_verified_at,trial_started_at,trial_expires_at")
     .eq("telegram_user_id", userId).maybeSingle();
@@ -319,10 +370,10 @@ Deno.serve(async (req: Request) => {
         .select("telegram_user_id,chat_id,first_name,last_name,username,consent_at,phone_verified_at,trial_expires_at,updated_at")
         .order("updated_at", { ascending: false }).limit(100),
       db.from("telegram_access_requests")
-        .select("id,telegram_user_id,chat_id,requested_minutes,status,created_at,decided_at,decided_by,decision_reason")
+        .select("id,telegram_user_id,chat_id,requested_minutes,status,created_at,decided_at,decided_by,decided_by_web_email,decision_reason")
         .order("created_at", { ascending: false }).limit(100),
       db.from("telegram_access_grants")
-        .select("id,telegram_user_id,chat_id,request_id,status,starts_at,expires_at,created_at,created_by,revoked_at,revoked_by,revoke_reason")
+        .select("id,telegram_user_id,chat_id,request_id,status,starts_at,expires_at,created_at,created_by,created_by_web_email,revoked_at,revoked_by,revoked_by_web_email,revoke_reason")
         .order("created_at", { ascending: false }).limit(100),
       db.from("telegram_security_events")
         .select("id,actor_user_id,subject_user_id,event_type,details,created_at")
@@ -421,6 +472,49 @@ Deno.serve(async (req: Request) => {
   };
 
   try {
+    if (action === "web_admin_dashboard") {
+      if (!isWebAdmin) return json({ ok: false, error: "admin_only" }, 403);
+      await writeSecurityEvent("session_started", null, null, { via: "web_admin", email: webAdminEmail });
+      return json({ ok: true, adminPanel: await loadAdminPanel() });
+    }
+
+    if (action === "web_admin_decide_request") {
+      const requestId = String(body?.requestId || "");
+      const decision = body?.decision;
+      if (!isWebAdmin || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) ||
+          (decision !== "approve" && decision !== "reject")) {
+        return json({ ok: false, error: "invalid_request" }, 400);
+      }
+      const { error } = await db.rpc("decide_telegram_access_request_web", {
+        p_request_id: requestId,
+        p_admin_email: webAdminEmail,
+        p_approved: decision === "approve",
+        p_reason: String(body?.reason || "").slice(0, 240) || null,
+      });
+      if (error) {
+        console.error("Web admin decision failed", error.message);
+        return json({ ok: false, error: "request_decision_failed" }, 409);
+      }
+      return json({ ok: true, adminPanel: await loadAdminPanel() });
+    }
+
+    if (action === "web_admin_revoke_grant") {
+      const grantId = String(body?.grantId || "");
+      if (!isWebAdmin || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(grantId)) {
+        return json({ ok: false, error: "invalid_request" }, 400);
+      }
+      const { error } = await db.rpc("revoke_telegram_access_grant_web", {
+        p_grant_id: grantId,
+        p_admin_email: webAdminEmail,
+        p_reason: String(body?.reason || "لغو از پنل وب مدیر").slice(0, 240),
+      });
+      if (error) {
+        console.error("Web admin access revoke failed", error.message);
+        return json({ ok: false, error: "grant_revoke_failed" }, 409);
+      }
+      return json({ ok: true, adminPanel: await loadAdminPanel() });
+    }
+
     if (action === "request_one_hour") {
       if (isAdmin) return json({ ok: false, error: "admin_access_is_unlimited" }, 400);
       if (!account?.phone_verified_at || String(account.chat_id) !== userId) {
