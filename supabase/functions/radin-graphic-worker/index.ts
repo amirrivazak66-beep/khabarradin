@@ -33,6 +33,16 @@ async function ensureFonts() {
 }
 const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-radin-worker-secret","Access-Control-Allow-Methods":"POST, OPTIONS","Content-Type":"application/json; charset=utf-8"};
 function esc(s:string){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;")}
+function decodeJwtClaims(token: string): Record<string, unknown> {
+  try {
+    const encoded = token.split(".")[1];
+    if (!encoded) return {};
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return {}; }
+}
 function persianWrittenDate(date:Date){const parts=new Intl.DateTimeFormat("fa-IR-u-ca-persian-nu-arabext",{day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Tehran"}).formatToParts(date);const get=(k:string)=>parts.find(p=>p.type===k)?.value||"";const digits=(s:string)=>s.replace(/[۰-۹]/g,ch=>"۰۱۲۳۴۵۶۷۸۹".indexOf(ch).toString());const day=Number(digits(get("day")));const year=Number(digits(get("year")));const ord=["","اول","دوم","سوم","چهارم","پنجم","ششم","هفتم","هشتم","نهم","دهم","یازدهم","دوازدهم","سیزدهم","چهاردهم","پانزدهم","شانزدهم","هفدهم","هجدهم","نوزدهم","بیستم","بیست و یکم","بیست و دوم","بیست و سوم","بیست و چهارم","بیست و پنجم","بیست و ششم","بیست و هفتم","بیست و هشتم","بیست و نهم","سی‌ام","سی و یکم"];const cardinal=(n:number):string=>{const u=["","یک","دو","سه","چهار","پنج","شش","هفت","هشت","نه"];const teen=["ده","یازده","دوازده","سیزده","چهارده","پانزده","شانزده","هفده","هجده","نوزده"];const tens=["","","بیست","سی","چهل","پنجاه","شصت","هفتاد","هشتاد","نود"];const hundreds=["","صد","دویست","سیصد","چهارصد","پانصد","ششصد","هفتصد","هشتصد","نهصد"];if(n===0)return "صفر";const out:string[]=[];if(n>=100){out.push(hundreds[Math.floor(n/100)]);n%=100}if(n>=10&&n<20)out.push(teen[n-10]);else{if(n>=20){out.push(tens[Math.floor(n/10)]);n%=10}if(n)out.push(u[n])}return out.join(" و ")};const yearWords=year>=1400&&year<1500?cardinal(year-1000):cardinal(year);return (ord[day]||get("day"))+" "+get("month")+" "+yearWords}
 function wrap(s:string,max=28,maxLines=3){const words=s.trim().split(/\s+/);const lines:string[]=[];let line="";for(const w of words){if((line+" "+w).trim().length>max&&line){lines.push(line);line=w}else line=(line+" "+w).trim()}if(line)lines.push(line);return lines.slice(0,maxLines)}
 Deno.serve(async(req)=>{
@@ -83,14 +93,20 @@ Deno.serve(async(req)=>{
  if(body.graphic_edit_prompt!==undefined&&(graphicEditPrompt.length<4||graphicEditPrompt.length>2400))return new Response(JSON.stringify({error:"graphic_edit_prompt must be 4 to 2400 characters"}),{status:400,headers:cors});
  let authorized=false;
  if(supplied){const {data:ok,error:authError}=await db.rpc("verify_radin_cron_secret",{candidate:supplied});authorized=!authError&&ok===true;}
- const bearer=(req.headers.get("Authorization")||"").replace(/^Bearer\\s+/i,"");
+ const bearer=(req.headers.get("Authorization")||"").match(/^Bearer\s+(.+)$/i)?.[1]||"";
  if(!authorized&&bearer){
-   const {data:userData}=await db.auth.getUser(bearer);
-   authorized=!!userData?.user && userData.user.email==="amir.rivazak66@gmail.com";
+   const {data:userData,error:userError}=await db.auth.getUser(bearer);
+   const user=userData?.user;
+   const email=String(user?.email||"").trim().toLowerCase();
+   const claims=decodeJwtClaims(bearer);
+   if(!userError&&user&&user.email_confirmed_at&&claims.aal==="aal2"){
+     const {data:allowed,error:allowError}=await db.from("web_admin_emails")
+       .select("email").eq("email",email).eq("active",true).maybeSingle();
+     authorized=!allowError&&!!allowed;
+   }
  }
- // A signed-in admin can request one unpublished item. Scheduled batch processing still requires the cron secret.
- if(body.item_id && !authorized && req.headers.get("apikey")!==key)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
- if(!body.item_id && !authorized)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
+ // Browser-triggered graphics and edits require an allowlisted administrator with an AAL2 session.
+ if(!authorized)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  let query=db.from("news_items").select("id,title,summary,category,image_url,video_file_id,graphic_image_url,source_name,source_type,pub_date,source_url,telegram_chat_id,telegram_preview_message_id,rewritten_title,telegram_headline_edited,telegram_caption_edited,rewritten_text,graphic_quality_status,graphic_quality_score,graphic_quality_notes,telegram_translation_language,telegram_generate_graphic,created_at").eq("published",false).neq("review_status","rejected");
  if(body.item_id) query=query.eq("id",String(body.item_id));
  else query=query.or("and(graphic_image_url.is.null,or(image_url.not.is.null,source_type.eq.telegram)),and(source_type.eq.telegram,telegram_chat_id.not.is.null,telegram_preview_message_id.is.null)").order("created_at",{ascending:true}).limit(1);
