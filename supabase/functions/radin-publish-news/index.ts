@@ -11,6 +11,17 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: corsHeaders
 });
 
+function decodeJwtClaims(token: string): Record<string, unknown> {
+  try {
+    const encoded = token.split(".")[1];
+    if (!encoded) return {};
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return {}; }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
@@ -47,14 +58,22 @@ Deno.serve(async (req: Request) => {
   if (!telegramAdmin && !cronAdmin && !authHeader.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
 
   if (!telegramAdmin && !cronAdmin) {
+    const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1] || "";
     const authClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false }
     });
-    const { data: authData, error: authError } = await authClient.auth.getUser();
-    if (authError || !authData.user || authData.user.email !== "amir.rivazak66@gmail.com") {
-      return json({ error: "Admin only" }, 403);
+    const { data: authData, error: authError } = await authClient.auth.getUser(token);
+    const user = authData?.user;
+    const email = String(user?.email || "").trim().toLowerCase();
+    const claims = decodeJwtClaims(token);
+    if (authError || !user || !user.email_confirmed_at || claims.aal !== "aal2") {
+      return json({ error: "Admin MFA required" }, 403);
     }
+    const { data: allowed, error: allowError } = await db.from("web_admin_emails")
+      .select("email").eq("email", email).eq("active", true).maybeSingle();
+    if (allowError) return json({ error: "Admin authorization unavailable" }, 500);
+    if (!allowed) return json({ error: "Admin only" }, 403);
   }
 
   let payload: { id?: string; action?: string; scheduled?: boolean };
