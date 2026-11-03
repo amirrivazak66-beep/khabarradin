@@ -198,7 +198,11 @@ body{background:#f2f6f8}
 #mfaVerifyBtn,#mfaBackBtn{width:100%;margin-top:10px}
 #mfaBackBtn{background:transparent;color:#b8c4d5;border:1px solid rgba(255,255,255,.18)}
 #mfaError{display:none;margin-top:10px;color:#ff9b9b;font-size:13px;line-height:1.7}
-#loginScreen.mfa-active .field,#loginScreen.mfa-active #loginBtn,#loginScreen.mfa-active .login-note{display:none}
+#loginScreen.mfa-active .login-box>.field,#loginScreen.mfa-active #loginBtn,#loginScreen.mfa-active .login-note{display:none}
+#mfaCodeField{display:block!important;margin:12px 0 4px}
+#mfaCodeField label{text-align:right}
+#mfaVerifyBtn{background:linear-gradient(135deg,#45cbbb,#269a9b);border:0;border-radius:9px;color:#fff;font-family:inherit;font-size:14px;font-weight:700;padding:11px;cursor:pointer}
+#mfaVerifyBtn:hover{filter:brightness(1.05)}
 .access-stack{display:grid;gap:12px}
 .access-card{border:1px solid #e5eaf0;border-radius:14px;padding:14px 16px;background:#fff;display:grid;gap:8px}
 .access-card .meta{color:#68758a;font-size:12px;line-height:1.8;word-break:break-word}
@@ -230,8 +234,8 @@ body{background:#f2f6f8}
         <h3>تأیید دومرحله‌ای مدیر</h3>
         <p id="mfaHelp">برای ورود به پنل، کد برنامهٔ احراز هویت را وارد کنید.</p>
         <img id="mfaQr" alt="QR کد ورود دومرحله‌ای">
-        <p id="mfaSecretWrap">کلید بازیابی دستی: <code id="mfaSecret"></code></p>
-        <div class="field"><label for="mfaCode">کد شش‌رقمی برنامهٔ احراز هویت</label><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+        <p id="mfaSecretWrap">کلید راه‌اندازی دستی: <code id="mfaSecret"></code></p>
+        <div class="field mfa-code-field" id="mfaCodeField"><label for="mfaCode">کد شش‌رقمی برنامهٔ احراز هویت</label><input id="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
         <button id="mfaVerifyBtn" type="button">تأیید کد و ورود</button>
         <button id="mfaBackBtn" type="button">لغو و بازگشت</button>
         <div id="mfaError"></div>
@@ -480,16 +484,34 @@ body{background:#f2f6f8}
       qr.style.display = 'none'; secretWrap.style.display = 'none';
       help.textContent = 'کد شش‌رقمی برنامهٔ احراز هویت را وارد کنید.';
     } else {
+      for (const pendingFactor of (factorData?.totp || []).filter(factor => factor.status === 'unverified')) {
+        try { await sb.auth.mfa.unenroll({ factorId: pendingFactor.id }); } catch {}
+      }
       const { data: enrollment, error: enrollError } = await sb.auth.mfa.enroll({
         factorType: 'totp', friendlyName: 'Radin News Web Admin'
       });
       if (enrollError || !enrollment?.id) throw enrollError || new Error('ثبت عامل دومرحله‌ای انجام نشد.');
       mfaFactorId = enrollment.id;
-      qr.src = enrollment.totp?.qr_code || '';
-      qr.style.display = qr.src ? 'block' : 'none';
-      document.getElementById('mfaSecret').textContent = enrollment.totp?.secret || '';
-      secretWrap.style.display = enrollment.totp?.secret ? 'block' : 'none';
-      help.textContent = 'این QR را با Google Authenticator یا برنامهٔ مشابه اسکن کنید؛ سپس کد شش‌رقمی را وارد کنید.';
+      const totp = enrollment.totp || {};
+      let qrCode = String(totp.qr_code || '').trim();
+      if (qrCode.startsWith('<svg')) qrCode = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(qrCode);
+      const canShowQr = /^(data:image\/|https?:\/\/)/i.test(qrCode);
+      if (canShowQr) { qr.src = qrCode; qr.style.display = 'block'; }
+      else { qr.removeAttribute('src'); qr.style.display = 'none'; }
+      let manualSecret = String(totp.secret || '').trim();
+      if (!manualSecret && totp.uri) {
+        try { manualSecret = new URL(totp.uri).searchParams.get('secret') || ''; } catch {}
+      }
+      document.getElementById('mfaSecret').textContent = manualSecret;
+      secretWrap.style.display = manualSecret ? 'block' : 'none';
+      help.textContent = canShowQr
+        ? 'این QR را با Google Authenticator یا برنامهٔ مشابه اسکن کنید؛ سپس کد شش‌رقمی را وارد کنید.'
+        : 'QR آماده نشد؛ کلید راه‌اندازی دستی را در برنامهٔ Authenticator وارد کنید.';
+      if (!canShowQr && !manualSecret) throw new Error('از Supabase نه QR و نه کلید راه‌اندازی دریافت شد.');
+      qr.onerror = () => {
+        qr.style.display = 'none';
+        if (manualSecret) help.textContent = 'QR بارگذاری نشد؛ کلید راه‌اندازی دستی را در برنامهٔ Authenticator وارد کنید.';
+      };
     }
     const { data: challenge, error: challengeError } = await sb.auth.mfa.challenge({ factorId: mfaFactorId });
     if (challengeError || !challenge?.id) throw challengeError || new Error('ساخت چالش دومرحله‌ای انجام نشد.');
