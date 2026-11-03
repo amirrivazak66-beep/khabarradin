@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200, origin = APP_ORIGIN) =>
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store, max-age=0",
       "access-control-allow-origin": origin,
-      "access-control-allow-headers": "authorization, content-type, x-client-info",
+      "access-control-allow-headers": "apikey, authorization, content-type, x-client-info",
       "access-control-allow-methods": "POST, OPTIONS",
       "vary": "Origin",
     },
@@ -133,7 +133,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", {
     headers: {
       "access-control-allow-origin": APP_ORIGIN,
-      "access-control-allow-headers": "authorization, content-type, x-client-info",
+      "access-control-allow-headers": "apikey, authorization, content-type, x-client-info",
       "access-control-allow-methods": "POST, OPTIONS",
       "vary": "Origin",
     },
