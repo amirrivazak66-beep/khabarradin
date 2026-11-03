@@ -90,6 +90,7 @@
 (function(){
   "use strict";
   var API = "https://gtbrkufbsllbosdyogfx.supabase.co/functions/v1/radin-account-portal";
+  var API_KEY = "sb_publishable_9NxC4g8PTGjedmrM3bO9vQ_-wm2HUr7";
   var BOT_LINK = "https://t.me/khabarradinnewbot?start=panel";
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
   var sessionToken = "";
@@ -129,7 +130,7 @@
     app.classList.remove("hidden");
   }
   async function apiCall(payload, token){
-    var headers = {"Content-Type":"application/json"};
+    var headers = {"Content-Type":"application/json","apikey":API_KEY};
     if(token) headers.Authorization = "Bearer "+token;
     var response = await fetch(API,{method:"POST",headers:headers,body:JSON.stringify(payload),cache:"no-store"});
     var data = await response.json().catch(function(){return {};});
