@@ -49,23 +49,50 @@ function parseItems(xml: string, limit: number) {
 }
 function hostOf(url: string) { try { return new URL(url).hostname.replace(/^www\./, "").slice(0, 200); } catch { return "منبع خبری"; } }
 
+function decodeJwtClaims(token: string): Record<string, unknown> {
+  try {
+    const encoded = token.split(".")[1];
+    if (!encoded) return {};
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return {}; }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "POST required" }), { status: 405, headers: cors });
-  const configuredCronSecret = Deno.env.get("RADIN_CRON_SECRET") || "";\n  const cronAuthorized = configuredCronSecret.length > 0 && req.headers.get("x-radin-cron-secret") === configuredCronSecret;
-  if (!cronAuthorized) {
-    const authHeader = req.headers.get("authorization") || "";
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
-    if (!authHeader.startsWith("Bearer ") || !anonKey) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
-    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, anonKey, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: authData, error: authError } = await authClient.auth.getUser();
-    if (authError || !authData.user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
-  }
+  const configuredCronSecret = Deno.env.get("RADIN_CRON_SECRET") || "";
+  const cronAuthorized = configuredCronSecret.length > 0 &&
+    req.headers.get("x-radin-cron-secret") === configuredCronSecret;
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   if (!supabaseUrl || !serviceKey) return new Response(JSON.stringify({ error: "Server configuration missing" }), { status: 500, headers: cors });
-
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  if (!cronAuthorized) {
+    const authHeader = req.headers.get("authorization") || "";
+    const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1] || "";
+    if (!token || !anonKey) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: cors });
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    const { data: authData, error: authError } = await authClient.auth.getUser(token);
+    const user = authData?.user;
+    const email = String(user?.email || "").trim().toLowerCase();
+    const claims = decodeJwtClaims(token);
+    if (authError || !user || !user.email_confirmed_at || claims.aal !== "aal2") {
+      return new Response(JSON.stringify({ error: "Admin MFA required" }), { status: 403, headers: cors });
+    }
+    const { data: allowed, error: allowError } = await db.from("web_admin_emails")
+      .select("email").eq("email", email).eq("active", true).maybeSingle();
+    if (allowError) return new Response(JSON.stringify({ error: "Admin authorization unavailable" }), { status: 500, headers: cors });
+    if (!allowed) return new Response(JSON.stringify({ error: "Admin only" }), { status: 403, headers: cors });
+  }
+
   const { data: feeds, error: feedsError } = await db.from("rss_feeds")
     .select("id,category,url,item_count,include_media,update_interval_minutes")
     .eq("enabled", true).order("created_at").limit(100);
