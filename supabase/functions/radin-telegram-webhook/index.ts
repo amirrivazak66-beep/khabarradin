@@ -87,6 +87,34 @@ Deno.serve(async (req: Request) => {
   const trialExpiryLabel = (expiresAt: string) => new Intl.DateTimeFormat("fa-IR", {
     dateStyle: "full", timeStyle: "short", timeZone: "Asia/Tehran",
   }).format(new Date(expiresAt));
+
+  const getActiveAccessGrant = async (userId: string) => {
+    if (!/^\d+$/.test(userId)) return null;
+    const { data, error } = await db.from("telegram_access_grants")
+      .select("id,chat_id,expires_at")
+      .eq("telegram_user_id", userId).eq("status", "active")
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) {
+      console.error("Telegram timed access lookup failed", error.message);
+      return null;
+    }
+    return data;
+  };
+  const accessGrantIsActive = (grant: any, chatId?: number | string) =>
+    Boolean(grant?.expires_at && Date.parse(String(grant.expires_at)) > Date.now() &&
+      (chatId === undefined || String(grant.chat_id) === String(chatId)));
+  const sendWebAccountPanel = async (chatId: number | string) => {
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: "پنل امن حساب به شناسهٔ همین حساب تلگرام متصل است. برای مشاهدهٔ فعالیت‌ها یا درخواست دسترسی یک‌ساعته، دکمهٔ زیر را بزنید.",
+      reply_markup: { inline_keyboard: [[{
+        text: "👤 باز کردن پنل حساب",
+        web_app: { url: "https://amirrivazak66-beep.github.io/newsroom/account.html" },
+      }]] },
+      disable_web_page_preview: true,
+    });
+  };
   const sendTrialConsent = async (chatId: number | string, source: "site" | "telegram") => {
     const consentText = "برای فعال‌سازی یک روز استفادهٔ آزمایشی، نام نمایشی تلگرام و شماره‌ای را که با دکمهٔ تلگرام به اشتراک می‌گذارید ثبت می‌کنیم. شمارهٔ خام ذخیره نمی‌شود؛ فقط اثر انگشت رمزنگاری‌شدهٔ آن برای جلوگیری از فعال‌سازی تکراری نگه داشته می‌شود. دورهٔ ۲۴ساعته پس از تأیید شماره آغاز می‌شود. با ادامه، با این ثبت اطلاعات موافقت می‌کنید.";
     const sent = await telegram("sendMessage", {
@@ -950,7 +978,8 @@ Deno.serve(async (req: Request) => {
   const userId = String(message.from?.id ?? "");
   const isAdmin = adminIds.includes(userId);
   const trialAccount = isAdmin ? null : await getTrialAccount(userId);
-  const trialActive = isAdmin || trialIsActive(trialAccount, chatId);
+  const accessGrant = isAdmin ? null : await getActiveAccessGrant(userId);
+  const trialActive = isAdmin || trialIsActive(trialAccount, chatId) || accessGrantIsActive(accessGrant, chatId);
   const messageText = String(message.text ?? message.caption ?? "").trim();
   const videoMedia = message.video || null;
   const command = messageText.split(/\s+/, 1)[0].split("@", 1)[0];
@@ -1056,6 +1085,7 @@ Deno.serve(async (req: Request) => {
       reply_markup: { ...mainMenuReplyMarkup(false, true), input_field_placeholder: "لینک یا خبر را بفرستید" },
       disable_web_page_preview: true,
     });
+    await sendWebAccountPanel(chatId);
     return json({ ok: true });
   }
 
@@ -1293,18 +1323,26 @@ Deno.serve(async (req: Request) => {
     }
     return json({ ok: true });
   }
-  if (messageText === "👤 حساب کاربری") {
+  if (command === "/panel" || messageText === "👤 حساب کاربری") {
+    if (message.chat.type !== "private" || String(chatId) !== userId) {
+      await telegram("sendMessage", { chat_id: chatId, text: "پنل حساب را فقط در گفت‌وگوی خصوصی با ربات باز کنید." });
+      return json({ ok: true });
+    }
+    const hasTrial = trialIsActive(trialAccount, chatId);
+    const hasTimedAccess = accessGrantIsActive(accessGrant, chatId);
     const accountStatus = isAdmin ? "مدیر ربات"
-      : trialActive ? "دورهٔ آزمایشی فعال تا " + trialExpiryLabel(String(trialAccount?.trial_expires_at))
+      : hasTrial ? "دورهٔ آزمایشی فعال تا " + trialExpiryLabel(String(trialAccount?.trial_expires_at))
+      : hasTimedAccess ? "دسترسی یک‌ساعته فعال تا " + trialExpiryLabel(String(accessGrant?.expires_at))
       : trialAccount?.phone_verified_at ? "دورهٔ آزمایشی پایان یافته"
       : trialAccount?.consent_at ? "در انتظار تأیید شماره"
       : "ثبت‌نام نشده";
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "👤 حساب رادین نیوز\nشناسه تلگرام: " + String(userId || chatId) + "\nدسترسی: " + accountStatus + (trialActive ? "\n\nلینک یا محتوای خبر را برای ساخت پیش‌نمایش بفرستید." : "\n\nبرای دریافت یک روز استفادهٔ آزمایشی، ثبت‌نام و احراز هویت را کامل کنید."),
+      text: "👤 حساب رادین نیوز\nشناسه تلگرام: " + String(userId || chatId) + "\nدسترسی: " + accountStatus + ((hasTrial || hasTimedAccess || isAdmin) ? "\n\nخبرها و فعالیت‌های این حساب در پنل شخصی دیده می‌شود." : "\n\nبرای شروع، ثبت‌نام و تأیید شماره را در ربات کامل کنید."),
       reply_markup: mainMenuReplyMarkup(isAdmin, trialActive),
       disable_web_page_preview: true,
     });
+    await sendWebAccountPanel(chatId);
     return json({ ok: true });
   }
   if (messageText === "💬 پشتیبانی") {
@@ -1336,6 +1374,7 @@ Deno.serve(async (req: Request) => {
       { command: "start", description: "♻️ شروع مجدد" },
       { command: "help", description: "ℹ️ راهنما و قوانین" },
       { command: "categories", description: "🗂 دسته‌بندی خبرها" },
+      { command: "panel", description: "👤 پنل حساب کاربری" },
     ];
     const commands = await telegram("setMyCommands", { commands: defaultCommands });
     if (!commands.response.ok || !commands.result?.ok) console.error("Could not set Telegram commands", commands.result?.description || "");
@@ -1351,12 +1390,12 @@ Deno.serve(async (req: Request) => {
       });
       if (!scoped.response.ok || !scoped.result?.ok) console.error("Could not set admin Telegram commands", scoped.result?.description || "");
     }
+    const startPayload = messageText.split(/\s+/, 2)[1] || "";
     if (!isAdmin) {
       if (message.chat.type !== "private" || String(chatId) !== userId) {
         await telegram("sendMessage", { chat_id: chatId, text: "برای ثبت‌نام، از دکمهٔ ورود سایت ربات را در گفت‌وگوی خصوصی باز کنید." });
         return json({ ok: true });
       }
-      const startPayload = messageText.split(/\s+/, 2)[1] || "";
       const registrationSource = startPayload.toLowerCase() === "site" ? "site" : "telegram";
       console.log("Telegram /start flow", {
         chat_type: message.chat?.type || null,
@@ -1367,17 +1406,22 @@ Deno.serve(async (req: Request) => {
         registration_source: registrationSource,
       });
       if (trialActive) {
+        const hasTrial = trialIsActive(trialAccount, chatId);
+        const activeUntil = hasTrial ? trialAccount?.trial_expires_at : accessGrant?.expires_at;
+        const accessType = hasTrial ? "دورهٔ آزمایشی ۲۴ساعته" : "دسترسی یک‌ساعته";
         await telegram("sendMessage", {
           chat_id: chatId,
-          text: "✅ حساب شما احراز هویت شده است. دورهٔ آزمایشی تا " + trialExpiryLabel(String(trialAccount?.trial_expires_at)) + " فعال است؛ لینک یا محتوای خبر را بفرستید تا پیش‌نمایش ساخته شود.",
+          text: "✅ حساب شما احراز هویت شده است. " + accessType + " تا " + trialExpiryLabel(String(activeUntil)) + " فعال است؛ لینک یا محتوای خبر را بفرستید تا پیش‌نمایش ساخته شود.",
           reply_markup: mainMenuReplyMarkup(false, true), disable_web_page_preview: true,
         });
+        if (startPayload.toLowerCase() === "panel") await sendWebAccountPanel(chatId);
       } else if (trialAccount?.phone_verified_at) {
         await telegram("sendMessage", {
           chat_id: chatId,
-          text: "⏳ دورهٔ آزمایشی ۲۴ساعتهٔ این حساب پایان یافته و دوباره فعال نمی‌شود. برای ادامه با پشتیبانی تماس بگیرید.",
+          text: "⏳ دورهٔ آزمایشی ۲۴ساعتهٔ این حساب پایان یافته و دوباره فعال نمی‌شود. از «حساب کاربری» در ربات پنل را باز کنید و برای دسترسی یک‌ساعته درخواست بفرستید.",
           reply_markup: mainMenuReplyMarkup(false, false), disable_web_page_preview: true,
         });
+        if (startPayload.toLowerCase() === "panel") await sendWebAccountPanel(chatId);
       } else if (trialAccount?.consent_at) {
         await sendTrialContactRequest(chatId);
       } else {
@@ -1392,6 +1436,7 @@ Deno.serve(async (req: Request) => {
       disable_web_page_preview: true,
     });
     console.log("Telegram /start welcome result", { ok: welcome.response.ok && welcome.result?.ok === true });
+    if (startPayload.toLowerCase() === "panel" && message.chat.type === "private") await sendWebAccountPanel(chatId);
     return json({ ok: true });
   }
   if (command === "/help" || messageText === "ℹ️ راهنما و قوانین" || messageText === "ℹ️ راهنما") {
