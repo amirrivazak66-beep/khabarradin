@@ -555,9 +555,18 @@ body{background:#f2f6f8}
   document.getElementById('password').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('loginBtn').click();
   });
+  const normalizeMfaCode = value => String(value || '')
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/\D/g, '').slice(0, 6);
+  document.getElementById('mfaCode').addEventListener('input', event => {
+    const input = event.currentTarget;
+    input.value = normalizeMfaCode(input.value);
+    setMfaError('');
+  });
   document.getElementById('mfaVerifyBtn').addEventListener('click', async () => {
     const button = document.getElementById('mfaVerifyBtn');
-    const code = document.getElementById('mfaCode').value.replace(/\D/g, '').slice(0, 6);
+    const code = normalizeMfaCode(document.getElementById('mfaCode').value);
     if (!mfaFactorId || !mfaChallengeId || code.length !== 6){ setMfaError('کد شش‌رقمی را کامل وارد کنید.'); return; }
     button.disabled = true; button.textContent = 'در حال تأیید...'; setMfaError('');
     try {
