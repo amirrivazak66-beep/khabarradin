@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.0";
 
 const APP_ORIGIN = "https://amirrivazak66-beep.github.io";
-const MAX_INIT_AGE_SECONDS = 15 * 60;
+const MAX_INIT_AGE_SECONDS = 60 * 60;
 const SESSION_TTL_SECONDS = 30 * 60;
 const encoder = new TextEncoder();
 
@@ -62,14 +62,23 @@ const verifyTelegramInitData = async (raw: string, botToken: string) => {
       now - authDate > MAX_INIT_AGE_SECONDS ||
       !userRaw) return null;
 
-  const dataCheckString = [...values.entries()]
-    .filter(([key]) => key !== "hash")
+  const sortDataCheckString = (excludeSignature: boolean) => [...values.entries()]
+    .filter(([key]) => key !== "hash" && (!excludeSignature || key !== "signature"))
     .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     .map(([key, value]) => key + "=" + value)
     .join("\n");
+  const dataCheckStrings = [sortDataCheckString(false)];
+  if (values.has("signature")) dataCheckStrings.push(sortDataCheckString(true));
   const secret = await hmac(encoder.encode("WebAppData"), botToken);
-  const expectedHash = hex(await hmac(secret, dataCheckString));
-  if (!constantTimeEqual(receivedHash.toLowerCase(), expectedHash)) return null;
+  let validHash = false;
+  for (const dataCheckString of dataCheckStrings) {
+    const expectedHash = hex(await hmac(secret, dataCheckString));
+    if (constantTimeEqual(receivedHash.toLowerCase(), expectedHash)) {
+      validHash = true;
+      break;
+    }
+  }
+  if (!validHash) return null;
 
   try {
     const user = JSON.parse(userRaw);
@@ -176,8 +185,26 @@ Deno.serve(async (req: Request) => {
   let userId = "";
   let sessionToken = "";
   if (action === "bootstrap") {
-    const identity = await verifyTelegramInitData(String(body?.initData || ""), botToken);
-    if (!identity) return json({ ok: false, error: "telegram_auth_invalid" }, 401);
+    const rawInitData = String(body?.initData || "");
+    const identity = await verifyTelegramInitData(rawInitData, botToken);
+    if (!identity) {
+      const params = new URLSearchParams(rawInitData);
+      const authDate = Number(params.get("auth_date"));
+      const now = Math.floor(Date.now() / 1000);
+      const reason = !rawInitData ? "missing_init_data"
+        : !params.get("hash") ? "missing_hash"
+        : !params.get("user") ? "missing_user"
+        : !Number.isInteger(authDate) ? "invalid_auth_date"
+        : authDate > now + 60 ? "future_auth_date"
+        : now - authDate > MAX_INIT_AGE_SECONDS ? "stale_auth_date"
+        : "signature_or_data_mismatch";
+      console.warn("Telegram Mini App authentication rejected", {
+        reason,
+        initDataLength: rawInitData.length,
+        ageSeconds: Number.isInteger(authDate) ? now - authDate : null,
+      });
+      return json({ ok: false, error: "telegram_auth_invalid" }, 401);
+    }
     userId = identity.userId;
     const isAdmin = adminIds().has(userId);
     if (!isAdmin) {
@@ -434,3 +461,4 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "portal_request_failed" }, 500);
   }
 });
+
