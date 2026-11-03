@@ -95,17 +95,21 @@ Deno.serve(async (req: Request) => {
       reply_markup: { inline_keyboard: [[{ text: "✅ موافقم و ادامه می‌دهم", callback_data: "register:consent:" + source }]] },
       disable_web_page_preview: true,
     });
-    if (sent.response.ok && sent.result?.ok) return;
+    if (sent.response.ok && sent.result?.ok) {
+      console.log("Telegram trial consent prompt delivered", { source, fallback: false });
+      return;
+    }
     const fallbackConsent = source === "site" ? "✅ موافقم و ادامه می‌دهم (سایت)" : "✅ موافقم و ادامه می‌دهم";
-    await telegram("sendMessage", {
+    const fallback = await telegram("sendMessage", {
       chat_id: chatId,
       text: consentText + "\n\nاگر دکمهٔ تأیید بالای صفحه کار نکرد، دکمهٔ پایین را بزنید.",
       reply_markup: { keyboard: [[{ text: fallbackConsent }]], resize_keyboard: true, one_time_keyboard: true },
       disable_web_page_preview: true,
     });
+    console.log("Telegram trial consent fallback result", { source, ok: fallback.response.ok && fallback.result?.ok === true });
   };
   const sendTrialContactRequest = async (chatId: number | string) => {
-    await telegram("sendMessage", {
+    const sent = await telegram("sendMessage", {
       chat_id: chatId,
       text: "برای احراز هویت و فعال‌کردن دورهٔ یک‌روزه، دکمهٔ زیر را بزنید تا شمارهٔ خودتان را از طریق تلگرام تأیید کنید.",
       reply_markup: {
@@ -113,6 +117,7 @@ Deno.serve(async (req: Request) => {
         resize_keyboard: true, one_time_keyboard: true, input_field_placeholder: "شماره را با دکمهٔ تلگرام تأیید کنید",
       },
     });
+    console.log("Telegram contact request result", { ok: sent.response.ok && sent.result?.ok === true });
   };
   const phoneFingerprint = async (phone: string) => {
     const key = await crypto.subtle.importKey(
@@ -1348,6 +1353,14 @@ Deno.serve(async (req: Request) => {
       }
       const startPayload = messageText.split(/\s+/, 2)[1] || "";
       const registrationSource = startPayload.toLowerCase() === "site" ? "site" : "telegram";
+      console.log("Telegram /start flow", {
+        chat_type: message.chat?.type || null,
+        is_admin: isAdmin,
+        trial_account_found: Boolean(trialAccount),
+        consent_recorded: Boolean(trialAccount?.consent_at),
+        phone_verified: Boolean(trialAccount?.phone_verified_at),
+        registration_source: registrationSource,
+      });
       if (trialActive) {
         await telegram("sendMessage", {
           chat_id: chatId,
@@ -1367,12 +1380,13 @@ Deno.serve(async (req: Request) => {
       }
       return json({ ok: true });
     }
-    await telegram("sendMessage", {
+    const welcome = await telegram("sendMessage", {
       chat_id: chatId,
       text: "به ربات خبر رادین خوش آمدید.\n\nبرای ثبت خبر، لینک را بفرستید یا متن، عکس و ویدیو را از منابع مختلف فوروارد کنید؛ برای عکس و ویدیوی فورواردی لینک لازم نیست. پس از آماده‌شدن گرافیک، پیش‌نمایش را ببینید و انتشار را تأیید کنید.\n\nدکمهٔ ثابت Menu فرمان‌ها را باز می‌کند؛ دکمه‌های رنگی پایین صفحه دسترسی سریع به بخش‌های ربات هستند.",
       reply_markup: mainMenuReplyMarkup(isAdmin, trialActive),
       disable_web_page_preview: true,
     });
+    console.log("Telegram /start welcome result", { ok: welcome.response.ok && welcome.result?.ok === true });
     return json({ ok: true });
   }
   if (command === "/help" || messageText === "ℹ️ راهنما و قوانین" || messageText === "ℹ️ راهنما") {
