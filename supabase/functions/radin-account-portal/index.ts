@@ -257,14 +257,19 @@ Deno.serve(async (req: Request) => {
       return { ok: false as const, status: 500, error: "admin_auth_unavailable" };
     }
     if (!allowlisted) return { ok: false as const, status: 403, error: "admin_not_allowed" };
-    const claims = jwtClaims(token);
-    return { ok: true as const, email, userId: String(user.id), aal: String(claims?.aal || "aal1") };
+    const claims = jwtClaims(token) || {};
+    const aal = String(claims.aal || "aal1");
+    const methods = Array.isArray(claims.amr) ? claims.amr : [];
+    const emailOtp = aal === "aal1" && methods.some((entry: unknown) =>
+      !!entry && typeof entry === "object" && (entry as Record<string, unknown>).method === "otp"
+    );
+    return { ok: true as const, email, userId: String(user.id), aal, adminAuthAllowed: aal === "aal2" || emailOtp };
   };
 
   if (action === "web_admin_check") {
     const webAdmin = await authorizeWebAdmin(getBearerToken());
     if (!webAdmin.ok) return json({ ok: false, error: webAdmin.error }, webAdmin.status);
-    return json({ ok: true, admin: true, email: webAdmin.email, mfaRequired: webAdmin.aal !== "aal2" });
+    return json({ ok: true, admin: true, email: webAdmin.email, mfaRequired: !webAdmin.adminAuthAllowed });
   }
 
   let userId = "";
@@ -321,7 +326,7 @@ Deno.serve(async (req: Request) => {
       if (!action.startsWith("web_admin_")) return json({ ok: false, error: "session_invalid" }, 401);
       const webAdmin = await authorizeWebAdmin(token);
       if (!webAdmin.ok) return json({ ok: false, error: webAdmin.error }, webAdmin.status);
-      if (webAdmin.aal !== "aal2") return json({ ok: false, error: "admin_mfa_required" }, 403);
+      if (!webAdmin.adminAuthAllowed) return json({ ok: false, error: "admin_mfa_required" }, 403);
       webAdminEmail = webAdmin.email;
       isWebAdmin = true;
       // A non-Telegram identity must not be used as a Telegram bigint actor.
@@ -604,4 +609,3 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "portal_request_failed" }, 500);
   }
 });
-
