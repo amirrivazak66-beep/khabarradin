@@ -22,6 +22,14 @@ function decodeJwtClaims(token: string): Record<string, unknown> {
   } catch { return {}; }
 }
 
+function hasAdminOtpOrMfa(claims: Record<string, unknown>): boolean {
+  if (claims.aal === "aal2") return true;
+  const methods = Array.isArray(claims.amr) ? claims.amr : [];
+  return claims.aal === "aal1" && methods.some((entry) =>
+    !!entry && typeof entry === "object" && (entry as Record<string, unknown>).method === "otp"
+  );
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
@@ -67,8 +75,8 @@ Deno.serve(async (req: Request) => {
     const user = authData?.user;
     const email = String(user?.email || "").trim().toLowerCase();
     const claims = decodeJwtClaims(token);
-    if (authError || !user || !user.email_confirmed_at || claims.aal !== "aal2") {
-      return json({ error: "Admin MFA required" }, 403);
+    if (authError || !user || !user.email_confirmed_at || !hasAdminOtpOrMfa(claims)) {
+      return json({ error: "Admin email OTP or MFA required" }, 403);
     }
     const { data: allowed, error: allowError } = await db.from("web_admin_emails")
       .select("email").eq("email", email).eq("active", true).maybeSingle();
