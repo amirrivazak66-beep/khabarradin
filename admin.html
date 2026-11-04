@@ -56,15 +56,15 @@ a{text-decoration:none; color:inherit;}
   transition:border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
 .field input:focus{border-color:var(--gold); background:#1c3050;}
-#loginBtn{
+#sendOtpBtn{
   width:100%; margin-top:8px; padding:12px; border:none; border-radius:10px; cursor:pointer;
   background:linear-gradient(135deg,var(--gold-light),var(--gold)); color:var(--navy-950);
   font-weight:800; font-size:14px; font-family:inherit;
   box-shadow:0 10px 24px rgba(201,154,61,.28);
   transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
-#loginBtn:hover{transform:translateY(-1px); box-shadow:0 14px 30px rgba(201,154,61,.36);}
-#loginBtn:disabled{opacity:.6; cursor:wait; transform:none;}
+#sendOtpBtn:hover{transform:translateY(-1px); box-shadow:0 14px 30px rgba(201,154,61,.36);}
+#sendOtpBtn:disabled{opacity:.6; cursor:wait; transform:none;}
 .login-error{
   margin-top:12px; background:rgba(239,83,80,.14); color:#ff9a9a; font-size:12.5px;
   padding:10px 12px; border-radius:9px; display:none; text-align:center;
@@ -184,25 +184,22 @@ body{background:#f2f6f8}
 #loginScreen{background:radial-gradient(circle at 30% 20%,#183b5b,#071629 62%)}
 .login-box{border-radius:24px}
 .login-box .lock-badge{background:linear-gradient(145deg,#8df0e1,#58e0d0);color:#071629;box-shadow:0 10px 24px #58e0d044}
-#loginBtn{background:linear-gradient(135deg,#8df0e1,#58e0d0);box-shadow:0 10px 24px #58e0d044}
+#sendOtpBtn{background:linear-gradient(135deg,#8df0e1,#58e0d0);box-shadow:0 10px 24px #58e0d044}
 .field input:focus{border-color:#58cbbb}
 .panel,.stat-card{border-radius:18px}
 .btn-primary{background:linear-gradient(135deg,#45cbbb,#269a9b);border-color:#269a9b}
 
-#mfaPanel{display:none;margin:16px 0 0;padding:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:16px;color:#fff;text-align:right}
-#mfaPanel h3{margin:0 0 8px;font-size:18px}
-#mfaPanel p{color:#b8c4d5;line-height:1.8;font-size:13px}
-#mfaQr{display:none;width:190px;height:190px;object-fit:contain;background:#fff;border-radius:12px;padding:8px;margin:10px auto}
-#mfaSecretWrap{display:none;direction:ltr;text-align:center;word-break:break-all;background:rgba(0,0,0,.22);padding:10px;border-radius:9px}
-#mfaCode{direction:ltr;text-align:center;letter-spacing:.35em;font-size:22px}
-#mfaVerifyBtn,#mfaBackBtn{width:100%;margin-top:10px}
-#mfaBackBtn{background:transparent;color:#b8c4d5;border:1px solid rgba(255,255,255,.18)}
-#mfaError{display:none;margin-top:10px;color:#ff9b9b;font-size:13px;line-height:1.7}
-#loginScreen.mfa-active .login-box>.field,#loginScreen.mfa-active #loginBtn,#loginScreen.mfa-active .login-note{display:none}
-#mfaCodeField{display:block!important;margin:12px 0 4px}
-#mfaCodeField label{text-align:right}
-#mfaVerifyBtn{background:linear-gradient(135deg,#45cbbb,#269a9b);border:0;border-radius:9px;color:#fff;font-family:inherit;font-size:14px;font-weight:700;padding:11px;cursor:pointer}
-#mfaVerifyBtn:hover{filter:brightness(1.05)}
+#otpPanel{display:none;margin:16px 0 0;padding:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:16px;color:#fff;text-align:right}
+#otpPanel p{color:#b8c4d5;line-height:1.8;font-size:13px;margin-bottom:10px}
+#otpCode{direction:ltr;text-align:center;letter-spacing:.35em;font-size:22px}
+#otpCodeField{margin:12px 0 4px}
+#verifyOtpBtn,#changeEmailBtn,#resendOtpBtn{width:100%;margin-top:10px}
+#verifyOtpBtn{background:linear-gradient(135deg,#45cbbb,#269a9b);border:0;border-radius:9px;color:#fff;font-family:inherit;font-size:14px;font-weight:700;padding:11px;cursor:pointer}
+#verifyOtpBtn:hover{filter:brightness(1.05)}
+#changeEmailBtn,#resendOtpBtn{background:transparent;color:#b8c4d5;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:10px;font-family:inherit;cursor:pointer}
+#changeEmailBtn:hover,#resendOtpBtn:hover{background:rgba(255,255,255,.06)}
+#otpError{display:none;margin-top:10px;color:#ff9b9b;font-size:13px;line-height:1.7}
+#loginScreen.otp-active #emailField,#loginScreen.otp-active #sendOtpBtn{display:none}
 .access-stack{display:grid;gap:12px}
 .access-card{border:1px solid #e5eaf0;border-radius:14px;padding:14px 16px;background:#fff;display:grid;gap:8px}
 .access-card .meta{color:#68758a;font-size:12px;line-height:1.8;word-break:break-word}
@@ -220,28 +217,22 @@ body{background:#f2f6f8}
       <div class="lock-badge"><i class="fa-solid fa-shield-halved"></i></div>
       <h2>ورود به پنل مدیریت</h2>
       <p class="sub">فضای کاری تحریریهٔ شما<br>برای مدیریت خبر، محتوا و انتشار وارد شوید.</p>
-      <div class="field">
-        <label>ایمیل</label>
+      <div class="field" id="emailField">
+        <label for="email">ایمیل مدیر</label>
         <input type="email" id="email" placeholder="admin@example.com" autocomplete="username">
       </div>
-      <div class="field">
-        <label>رمز عبور</label>
-        <input type="password" id="password" placeholder="رمز عبور" autocomplete="current-password">
-      </div>
-      <button id="loginBtn">ورود به پنل</button>
+      <button id="sendOtpBtn" type="button">ارسال کد ورود به ایمیل</button>
       <div class="login-error" id="loginError"></div>
-      <div id="mfaPanel" aria-live="polite">
-        <h3>تأیید دومرحله‌ای مدیر</h3>
-        <p id="mfaHelp">برای ورود به پنل، کد برنامهٔ احراز هویت را وارد کنید.</p>
-        <img id="mfaQr" alt="QR کد ورود دومرحله‌ای">
-        <p id="mfaSecretWrap">کلید راه‌اندازی دستی: <code id="mfaSecret"></code></p>
-        <div class="field mfa-code-field" id="mfaCodeField"><label for="mfaCode">کد شش‌رقمی برنامهٔ احراز هویت</label><input id="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
-        <button id="mfaVerifyBtn" type="button">تأیید کد و ورود</button>
-        <button id="mfaBackBtn" type="button">لغو و بازگشت</button>
-        <div id="mfaError"></div>
+      <div id="otpPanel" aria-live="polite">
+        <p id="otpHelp">کد شش‌رقمی ورود به ایمیل مدیر ارسال شد.</p>
+        <div class="field" id="otpCodeField"><label for="otpCode">کد یک‌بارمصرف ایمیل</label><input id="otpCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+        <button id="verifyOtpBtn" type="button">تأیید کد و ورود</button>
+        <button id="resendOtpBtn" type="button">ارسال دوبارهٔ کد</button>
+        <button id="changeEmailBtn" type="button">تغییر ایمیل</button>
+        <div id="otpError"></div>
       </div>
       <div class="login-note">
-        این حساب همون کاربریه که در Supabase → Authentication → Users ساخته‌اید.
+        فقط ایمیل مدیرِ تأییدشده و ثبت‌شده در فهرست دسترسی‌ها می‌تواند وارد شود.
       </div>
       <a class="home-link" href="./" aria-label="بازگشت به صفحه اصلی نیوزروم">
         <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
@@ -409,16 +400,9 @@ body{background:#f2f6f8}
 
       <section id="viewSecurity" class="view">
         <div class="panel">
-          <h3>تغییر رمز عبور</h3>
-          <p class="sub">برای تغییر رمز، نشست مدیر باید با کد دومرحله‌ای معتبر باشد.</p>
-          <div class="pass-fields">
-            <div class="field"><label>رمز جدید</label><input type="password" id="newPass" autocomplete="new-password"></div>
-          </div>
-          <div class="row-actions">
-            <button class="btn-primary" id="changePassBtn">به‌روزرسانی رمز</button>
-          </div>
-          <div class="save-msg" id="passSaveMsg"><i class="fa-solid fa-circle-check"></i> رمز عبور تغییر کرد.</div>
-          <div class="login-error" id="passError" style="display:none;"></div>
+          <h3>ورود امن مدیر</h3>
+          <p class="sub">ورود با کد یک‌بارمصرف شش‌رقمی به ایمیل تأییدشده انجام می‌شود. کد را در اختیار هیچ‌کس نگذارید و اگر درخواست ورود از شما نبود، ایمیل را نادیده بگیرید.</p>
+          <p class="sub">دسترسی همچنان به ایمیل فعال در فهرست مدیران محدود است. نشست‌های ورود از دکمهٔ «خروج» بسته می‌شوند.</p>
         </div>
       </section>
     </main>
@@ -452,139 +436,136 @@ body{background:#f2f6f8}
     el.style.display = 'block';
   }
 
-  let mfaFactorId = '';
-  let mfaChallengeId = '';
-  const setMfaError = message => {
-    const el = document.getElementById('mfaError');
+  let pendingOtpEmail = '';
+  let resendOtpTimer = 0;
+  const setOtpError = message => {
+    const el = document.getElementById('otpError');
     el.textContent = message || '';
     el.style.display = message ? 'block' : 'none';
   };
-  const resetMfaScreen = () => {
-    document.getElementById('loginScreen').classList.remove('mfa-active');
-    document.getElementById('mfaPanel').style.display = 'none';
-    document.getElementById('mfaQr').style.display = 'none';
-    document.getElementById('mfaSecretWrap').style.display = 'none';
-    document.getElementById('mfaCode').value = '';
-    mfaFactorId = ''; mfaChallengeId = '';
-    setMfaError('');
+  const resetOtpScreen = () => {
+    document.getElementById('loginScreen').classList.remove('otp-active');
+    document.getElementById('otpPanel').style.display = 'none';
+    document.getElementById('otpCode').value = '';
+    document.getElementById('email').disabled = false;
+    document.getElementById('sendOtpBtn').disabled = false;
+    document.getElementById('sendOtpBtn').textContent = 'ارسال کد ورود به ایمیل';
+    const resend = document.getElementById('resendOtpBtn');
+    resend.disabled = false;
+    resend.textContent = 'ارسال دوبارهٔ کد';
+    if (resendOtpTimer) clearInterval(resendOtpTimer);
+    resendOtpTimer = 0;
+    pendingOtpEmail = '';
+    setOtpError('');
   };
-  async function startMfaStep(){
-    const panel = document.getElementById('mfaPanel');
-    const qr = document.getElementById('mfaQr');
-    const secretWrap = document.getElementById('mfaSecretWrap');
-    const help = document.getElementById('mfaHelp');
-    panel.style.display = 'block';
-    document.getElementById('loginScreen').classList.add('mfa-active');
-    setMfaError('');
-    const { data: factorData, error: factorError } = await sb.auth.mfa.listFactors();
-    if (factorError) throw factorError;
-    const verified = (factorData?.totp || []).find(factor => factor.status === 'verified');
-    if (verified){
-      mfaFactorId = verified.id;
-      qr.style.display = 'none'; secretWrap.style.display = 'none';
-      help.textContent = 'کد شش‌رقمی برنامهٔ احراز هویت را وارد کنید.';
-    } else {
-      for (const pendingFactor of (factorData?.totp || []).filter(factor => factor.status === 'unverified')) {
-        try { await sb.auth.mfa.unenroll({ factorId: pendingFactor.id }); } catch {}
-      }
-      const { data: enrollment, error: enrollError } = await sb.auth.mfa.enroll({
-        factorType: 'totp', friendlyName: 'Radin News Web Admin'
-      });
-      if (enrollError || !enrollment?.id) throw enrollError || new Error('ثبت عامل دومرحله‌ای انجام نشد.');
-      mfaFactorId = enrollment.id;
-      const totp = enrollment.totp || {};
-      let qrCode = String(totp.qr_code || '').trim();
-      if (qrCode.startsWith('<svg')) qrCode = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(qrCode);
-      const canShowQr = /^(data:image\/|https?:\/\/)/i.test(qrCode);
-      if (canShowQr) { qr.src = qrCode; qr.style.display = 'block'; }
-      else { qr.removeAttribute('src'); qr.style.display = 'none'; }
-      let manualSecret = String(totp.secret || '').trim();
-      if (!manualSecret && totp.uri) {
-        try { manualSecret = new URL(totp.uri).searchParams.get('secret') || ''; } catch {}
-      }
-      document.getElementById('mfaSecret').textContent = manualSecret;
-      secretWrap.style.display = manualSecret ? 'block' : 'none';
-      help.textContent = canShowQr
-        ? 'این QR را با Google Authenticator یا برنامهٔ مشابه اسکن کنید؛ سپس کد شش‌رقمی را وارد کنید.'
-        : 'QR آماده نشد؛ کلید راه‌اندازی دستی را در برنامهٔ Authenticator وارد کنید.';
-      if (!canShowQr && !manualSecret) throw new Error('از Supabase نه QR و نه کلید راه‌اندازی دریافت شد.');
-      qr.onerror = () => {
-        qr.style.display = 'none';
-        if (manualSecret) help.textContent = 'QR بارگذاری نشد؛ کلید راه‌اندازی دستی را در برنامهٔ Authenticator وارد کنید.';
-      };
+  const normalizeOtpCode = value => String(value || '')
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/\D/g, '').slice(0, 6);
+  async function requestEmailOtp(){
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const inOtpStep = document.getElementById('loginScreen').classList.contains('otp-active');
+    const button = document.getElementById(inOtpStep ? 'resendOtpBtn' : 'sendOtpBtn');
+    document.getElementById('loginError').style.display = 'none';
+    setOtpError('');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showLoginError('ایمیل مدیر را درست وارد کنید.');
+      return;
     }
-    const { data: challenge, error: challengeError } = await sb.auth.mfa.challenge({ factorId: mfaFactorId });
-    if (challengeError || !challenge?.id) throw challengeError || new Error('ساخت چالش دومرحله‌ای انجام نشد.');
-    mfaChallengeId = challenge.id;
-    document.getElementById('mfaCode').focus();
+    button.disabled = true;
+    const oldLabel = button.textContent;
+    button.textContent = 'در حال ارسال کد...';
+    try {
+      await sb.auth.signOut();
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+      if (error) throw error;
+      pendingOtpEmail = email;
+      document.getElementById('email').disabled = true;
+      document.getElementById('loginScreen').classList.add('otp-active');
+      document.getElementById('otpPanel').style.display = 'block';
+      document.getElementById('otpHelp').textContent = 'اگر این ایمیل حساب مدیر باشد، کد ورود برای آن ارسال می‌شود. صندوق هرزنامه را هم بررسی کنید.';
+      document.getElementById('otpCode').focus();
+      const resend = document.getElementById('resendOtpBtn');
+      let seconds = 60;
+      resend.disabled = true;
+      resend.textContent = `ارسال دوبارهٔ کد (${seconds})`;
+      if (resendOtpTimer) clearInterval(resendOtpTimer);
+      resendOtpTimer = setInterval(() => {
+        seconds -= 1;
+        if (seconds <= 0) {
+          clearInterval(resendOtpTimer); resendOtpTimer = 0;
+          resend.disabled = false; resend.textContent = 'ارسال دوبارهٔ کد';
+        } else resend.textContent = `ارسال دوبارهٔ کد (${seconds})`;
+      }, 1000);
+    } catch (err) {
+      const message = String(err?.message || '');
+      showLoginError(/rate|60 seconds|too many|email address not authorized/i.test(message)
+        ? 'ارسال کد فعلاً محدود است یا این ایمیل برای ارسال مجاز نیست. کمی بعد دوباره تلاش کنید.'
+        : 'ارسال کد ایمیل انجام نشد. تنظیم ارسال ایمیل Supabase را بررسی کنید.');
+      button.disabled = false;
+      button.textContent = inOtpStep ? 'ارسال دوبارهٔ کد' : 'ارسال کد ورود به ایمیل';
+    } finally {
+      if (!inOtpStep) {
+        const send = document.getElementById('sendOtpBtn');
+        send.disabled = false;
+        send.textContent = 'ارسال کد ورود به ایمیل';
+      }
+    }
   }
   async function checkWebAdminSession(email){
     const { data, error } = await sb.functions.invoke('radin-account-portal', { body: { action: 'web_admin_check' } });
     if (error || !data?.ok || !data.admin){
       await sb.auth.signOut();
+      resetOtpScreen();
       const reason = data?.error || error?.message || '';
-      showLoginError(reason === 'admin_not_allowed' ? 'این حساب در فهرست مدیران مجاز نیست.' :
+      showLoginError(reason === 'admin_not_allowed' ? 'این ایمیل در فهرست مدیران مجاز نیست.' :
         reason === 'admin_email_unverified' ? 'ابتدا ایمیل حساب مدیر را تأیید کنید.' :
         'ورود مدیر تأیید نشد. دوباره تلاش کنید.');
       return;
     }
     if (data.mfaRequired){
-      try { await startMfaStep(); }
-      catch (err){ setMfaError('راه‌اندازی احراز هویت دومرحله‌ای انجام نشد: ' + (err?.message || 'خطای نامشخص')); }
+      await sb.auth.signOut();
+      resetOtpScreen();
+      showLoginError('برای ورود، کد ایمیلی درخواست کنید؛ نشست قبلی با روش دیگری ساخته شده بود.');
       return;
     }
-    resetMfaScreen();
+    resetOtpScreen();
     showDashboard(data.email || email);
   }
 
-  // ---- Login ----
-  document.getElementById('loginBtn').addEventListener('click', async () => {
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    const btn = document.getElementById('loginBtn');
-    document.getElementById('loginError').style.display = 'none';
-    if (!email || !password){ showLoginError('ایمیل و رمز عبور را وارد کنید.'); return; }
-    btn.disabled = true; btn.textContent = 'در حال ورود...';
-    try {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error){ showLoginError('ایمیل یا رمز عبور اشتباه است.'); return; }
-      await checkWebAdminSession(data.user.email);
-    } catch (err){ showLoginError('ورود مدیر انجام نشد: ' + (err?.message || 'خطای ارتباط')); }
-    finally { btn.disabled = false; btn.textContent = 'ورود به پنل'; }
+  // ---- Email OTP login ----
+  document.getElementById('sendOtpBtn').addEventListener('click', requestEmailOtp);
+  document.getElementById('resendOtpBtn').addEventListener('click', requestEmailOtp);
+  document.getElementById('email').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('sendOtpBtn').click();
   });
-  document.getElementById('password').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('loginBtn').click();
-  });
-  const normalizeMfaCode = value => String(value || '')
-    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
-    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
-    .replace(/\D/g, '').slice(0, 6);
-  document.getElementById('mfaCode').addEventListener('input', event => {
+  document.getElementById('otpCode').addEventListener('input', event => {
     const input = event.currentTarget;
-    input.value = normalizeMfaCode(input.value);
-    setMfaError('');
+    input.value = normalizeOtpCode(input.value);
+    setOtpError('');
   });
-  document.getElementById('mfaVerifyBtn').addEventListener('click', async () => {
-    const button = document.getElementById('mfaVerifyBtn');
-    const code = normalizeMfaCode(document.getElementById('mfaCode').value);
-    if (!mfaFactorId || !mfaChallengeId || code.length !== 6){ setMfaError('کد شش‌رقمی را کامل وارد کنید.'); return; }
-    button.disabled = true; button.textContent = 'در حال تأیید...'; setMfaError('');
+  document.getElementById('verifyOtpBtn').addEventListener('click', async () => {
+    const button = document.getElementById('verifyOtpBtn');
+    const code = normalizeOtpCode(document.getElementById('otpCode').value);
+    if (!pendingOtpEmail || code.length !== 6) { setOtpError('کد شش‌رقمی را کامل وارد کنید.'); return; }
+    button.disabled = true; button.textContent = 'در حال تأیید...'; setOtpError('');
     try {
-      const { error } = await sb.auth.mfa.verify({ factorId: mfaFactorId, challengeId: mfaChallengeId, code });
-      if (error){ setMfaError('کد معتبر نیست یا منقضی شده؛ دوباره تلاش کنید.'); return; }
-      const { data: gate, error: gateError } = await sb.functions.invoke('radin-account-portal', { body: { action: 'web_admin_check' } });
-      if (gateError || !gate?.ok || gate.mfaRequired) throw new Error('تأیید دومرحله‌ای هنوز کامل نشده است.');
-      resetMfaScreen(); showDashboard(gate.email);
-    } catch (err){ setMfaError(err?.message || 'تأیید دومرحله‌ای انجام نشد.'); }
-    finally { button.disabled = false; button.textContent = 'تأیید کد و ورود'; }
+      const { data, error } = await sb.auth.verifyOtp({ email: pendingOtpEmail, token: code, type: 'email' });
+      if (error) throw error;
+      await checkWebAdminSession(data.user?.email || pendingOtpEmail);
+    } catch {
+      setOtpError('کد اشتباه یا منقضی شده است؛ کد تازه بگیرید و دوباره وارد کنید.');
+    } finally {
+      button.disabled = false; button.textContent = 'تأیید کد و ورود';
+    }
   });
-  document.getElementById('mfaCode').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('mfaVerifyBtn').click();
+  document.getElementById('otpCode').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('verifyOtpBtn').click();
   });
-  document.getElementById('mfaBackBtn').addEventListener('click', async () => {
+  document.getElementById('changeEmailBtn').addEventListener('click', async () => {
     await sb.auth.signOut();
-    resetMfaScreen();
-    document.getElementById('password').value = '';
+    resetOtpScreen();
+    document.getElementById('email').focus();
   });
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -1039,35 +1020,6 @@ body{background:#f2f6f8}
     b.disabled=false;
   });
 
-  // ---- Change password (real Supabase auth) ----
-  document.getElementById('changePassBtn').addEventListener('click', async () => {
-    const next = document.getElementById('newPass').value;
-    const errEl = document.getElementById('passError');
-    const okEl = document.getElementById('passSaveMsg');
-    errEl.style.display = 'none';
-    okEl.style.display = 'none';
-
-    if (!next || next.length < 6){
-      errEl.textContent = 'رمز جدید باید حداقل ۶ کاراکتر باشه.';
-      errEl.style.display = 'block';
-      return;
-    }
-    const { data: assurance } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (assurance?.currentLevel !== 'aal2'){
-      errEl.textContent = 'برای تغییر رمز ابتدا دوباره احراز هویت دومرحله‌ای کنید.';
-      errEl.style.display = 'block';
-      return;
-    }
-    const { error } = await sb.auth.updateUser({ password: next });
-    if (error){
-      errEl.textContent = 'خطا در تغییر رمز: ' + error.message;
-      errEl.style.display = 'block';
-      return;
-    }
-    document.getElementById('newPass').value = '';
-    okEl.style.display = 'block';
-    setTimeout(() => okEl.style.display = 'none', 3000);
-  });
 
   // ---- Web admin: Telegram users, temporary access and security audit ----
   const accessHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
