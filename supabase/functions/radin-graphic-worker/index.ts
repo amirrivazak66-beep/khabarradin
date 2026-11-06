@@ -43,10 +43,8 @@ function decodeJwtClaims(token: string): Record<string, unknown> {
     return JSON.parse(new TextDecoder().decode(bytes));
   } catch { return {}; }
 }
-function hasAdminOtpOrMfa(claims: Record<string, unknown>): boolean {
- if(claims.aal==="aal2")return true;
- const methods=Array.isArray(claims.amr)?claims.amr:[];
- return claims.aal==="aal1"&&methods.some((entry)=>!!entry&&typeof entry==="object"&&(entry as Record<string,unknown>).method==="otp");
+function hasAdminMfa(claims: Record<string, unknown>): boolean {
+  return claims.aal === "aal2";
 }
 function persianWrittenDate(date:Date){const parts=new Intl.DateTimeFormat("fa-IR-u-ca-persian-nu-arabext",{day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Tehran"}).formatToParts(date);const get=(k:string)=>parts.find(p=>p.type===k)?.value||"";const digits=(s:string)=>s.replace(/[۰-۹]/g,ch=>"۰۱۲۳۴۵۶۷۸۹".indexOf(ch).toString());const day=Number(digits(get("day")));const year=Number(digits(get("year")));const ord=["","اول","دوم","سوم","چهارم","پنجم","ششم","هفتم","هشتم","نهم","دهم","یازدهم","دوازدهم","سیزدهم","چهاردهم","پانزدهم","شانزدهم","هفدهم","هجدهم","نوزدهم","بیستم","بیست و یکم","بیست و دوم","بیست و سوم","بیست و چهارم","بیست و پنجم","بیست و ششم","بیست و هفتم","بیست و هشتم","بیست و نهم","سی‌ام","سی و یکم"];const cardinal=(n:number):string=>{const u=["","یک","دو","سه","چهار","پنج","شش","هفت","هشت","نه"];const teen=["ده","یازده","دوازده","سیزده","چهارده","پانزده","شانزده","هفده","هجده","نوزده"];const tens=["","","بیست","سی","چهل","پنجاه","شصت","هفتاد","هشتاد","نود"];const hundreds=["","صد","دویست","سیصد","چهارصد","پانصد","ششصد","هفتصد","هشتصد","نهصد"];if(n===0)return "صفر";const out:string[]=[];if(n>=100){out.push(hundreds[Math.floor(n/100)]);n%=100}if(n>=10&&n<20)out.push(teen[n-10]);else{if(n>=20){out.push(tens[Math.floor(n/10)]);n%=10}if(n)out.push(u[n])}return out.join(" و ")};const yearWords=year>=1400&&year<1500?cardinal(year-1000):cardinal(year);return (ord[day]||get("day"))+" "+get("month")+" "+yearWords}
 function wrap(s:string,max=28,maxLines=3){const words=s.trim().split(/\s+/);const lines:string[]=[];let line="";for(const w of words){if((line+" "+w).trim().length>max&&line){lines.push(line);line=w}else line=(line+" "+w).trim()}if(line)lines.push(line);return lines.slice(0,maxLines)}
@@ -104,7 +102,7 @@ Deno.serve(async(req)=>{
    const user=userData?.user;
    const email=String(user?.email||"").trim().toLowerCase();
    const claims=decodeJwtClaims(bearer);
-   if(!userError&&user&&user.email_confirmed_at&&hasAdminOtpOrMfa(claims)){
+   if(!userError&&user&&user.email_confirmed_at&&hasAdminMfa(claims)){
      const {data:allowed,error:allowError}=await db.from("web_admin_emails")
        .select("email").eq("email",email).eq("active",true).maybeSingle();
      authorized=!allowError&&!!allowed;
