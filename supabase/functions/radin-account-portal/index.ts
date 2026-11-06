@@ -259,11 +259,7 @@ Deno.serve(async (req: Request) => {
     if (!allowlisted) return { ok: false as const, status: 403, error: "admin_not_allowed" };
     const claims = jwtClaims(token) || {};
     const aal = String(claims.aal || "aal1");
-    const methods = Array.isArray(claims.amr) ? claims.amr : [];
-    const emailOtp = aal === "aal1" && methods.some((entry: unknown) =>
-      !!entry && typeof entry === "object" && (entry as Record<string, unknown>).method === "otp"
-    );
-    return { ok: true as const, email, userId: String(user.id), aal, adminAuthAllowed: aal === "aal2" || emailOtp };
+    return { ok: true as const, email, userId: String(user.id), aal, adminAuthAllowed: aal === "aal2" };
   };
 
   if (action === "web_admin_check") {
