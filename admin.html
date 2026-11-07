@@ -233,7 +233,7 @@ body{background:#f2f6f8}
       <div id="emailLinkNote" hidden aria-live="polite"></div>
       <div id="emailOtpPanel" hidden>
         <p>کد دریافتی در ایمیل را همین‌جا وارد کنید؛ نیازی به بازکردن لینک ورود نیست.</p>
-        <div class="field"><label for="emailOtpCode">کد یک‌بارمصرف ایمیل</label><input id="emailOtpCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+        <div class="field"><label for="emailOtpCode">کد یک‌بارمصرف ایمیل</label><input id="emailOtpCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="00000000"></div>
         <button id="verifyEmailOtpBtn" type="button">تأیید کد ایمیل</button>
         <p id="emailOtpError" role="alert"></p>
       </div>
@@ -466,10 +466,12 @@ body{background:#f2f6f8}
   const emailOtpPanel = document.getElementById('emailOtpPanel');
   const emailLinkNote = document.getElementById('emailLinkNote');
   const totpPanel = document.getElementById('totpPanel');
-  const normalizeTotpCode = value => String(value || '')
+  const normalizeCode = (value, maxLength) => String(value || '')
     .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
     .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
-    .replace(/\D/g, '').slice(0, 6);
+    .replace(/\D/g, '').slice(0, maxLength);
+  const normalizeTotpCode = value => normalizeCode(value, 6);
+  const normalizeEmailCode = value => normalizeCode(value, 8);
   const setTotpError = message => {
     const el = document.getElementById('totpError');
     el.textContent = message || '';
@@ -610,13 +612,13 @@ body{background:#f2f6f8}
     }
   });
   document.getElementById('emailOtpCode').addEventListener('input', event => {
-    event.currentTarget.value = normalizeTotpCode(event.currentTarget.value);
+    event.currentTarget.value = normalizeEmailCode(event.currentTarget.value);
     document.getElementById('emailOtpError').textContent = '';
   });
   document.getElementById('verifyEmailOtpBtn').addEventListener('click', async () => {
-    const token = normalizeTotpCode(document.getElementById('emailOtpCode').value);
+    const token = normalizeEmailCode(document.getElementById('emailOtpCode').value);
     const errorEl = document.getElementById('emailOtpError');
-    if (!pendingOtpEmail || token.length !== 6){ errorEl.textContent = 'کد شش‌رقمی ایمیل را کامل وارد کنید.'; return; }
+    if (!pendingOtpEmail || !/^([0-9]{6}|[0-9]{8})$/.test(token)){ errorEl.textContent = 'کد ۶ یا ۸رقمی ایمیل را کامل وارد کنید.'; return; }
     const button = document.getElementById('verifyEmailOtpBtn');
     button.disabled = true; errorEl.textContent = '';
     try {
