@@ -97,6 +97,14 @@ Deno.serve(async(req)=>{
  let authorized=false;
  if(supplied){const {data:ok,error:authError}=await db.rpc("verify_radin_cron_secret",{candidate:supplied});authorized=!authError&&ok===true;}
  const bearer=(req.headers.get("Authorization")||"").match(/^Bearer\s+(.+)$/i)?.[1]||"";
+ // The authenticated Telegram webhook is a server workload, not an Auth user.
+ // Require both server credentials and a single story; never trust JWT claims
+ // or accept this path for a browser token or an unrestricted queue run.
+ const telegramSecret=Deno.env.get("TELEGRAM_WEBHOOK_SECRET")||"";
+ const telegramCandidate=req.headers.get("x-radin-telegram-secret")||"";
+ const telegramWorkload=Boolean(key&&bearer===key&&telegramSecret&&telegramCandidate===telegramSecret&&
+   typeof body.item_id==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.item_id));
+ if(telegramWorkload)authorized=true;
  if(!authorized&&bearer){
    const {data:userData,error:userError}=await db.auth.getUser(bearer);
    const user=userData?.user;
@@ -108,7 +116,7 @@ Deno.serve(async(req)=>{
      authorized=!allowError&&!!allowed;
    }
  }
- // Browser-triggered graphics and edits require an allowlisted administrator with an AAL2 session.
+ // Browser-triggered graphics and edits still require an allowlisted AAL2 admin.
  if(!authorized)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  let query=db.from("news_items").select("id,title,summary,category,image_url,video_file_id,graphic_image_url,source_name,source_type,pub_date,source_url,telegram_chat_id,telegram_preview_message_id,rewritten_title,telegram_headline_edited,telegram_caption_edited,rewritten_text,graphic_quality_status,graphic_quality_score,graphic_quality_notes,telegram_translation_language,telegram_generate_graphic,created_at").eq("published",false).neq("review_status","rejected");
  if(body.item_id) query=query.eq("id",String(body.item_id));
