@@ -1,0 +1,7 @@
+{
+  "name": "newsroom-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test *.test.mjs && node preview-queue-db.mjs" },
+  "devDependencies": { "@electric-sql/pglite": "0.3.14" }
+}

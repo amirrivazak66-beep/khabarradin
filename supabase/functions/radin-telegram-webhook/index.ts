@@ -165,27 +165,17 @@ Deno.serve(async (req: Request) => {
     return { inline_keyboard: rows };
   };
   const processStoryPreview = async (itemId: string, chatId: number | string) => {
-    try {
-      const response = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
-        method: "POST",
-        headers: { "content-type": "application/json", "apikey": serviceKey,
-          "authorization": "Bearer " + serviceKey, "x-radin-telegram-secret": webhookSecret },
-        body: JSON.stringify({ item_id: itemId, trigger: "scheduled" }),
-        signal: AbortSignal.timeout(140000),
-      });
-      const result = await response.json().catch(() => ({}));
-      const processed = result.results?.find((row: any) => row.id === itemId);
-      if (response.ok && processed?.ok) return;
-      throw new Error(String(processed?.error || result.error || "Preview preparation failed").slice(0, 300));
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "Preview preparation failed";
-      await db.from("bot_activity").insert({ event_type: "graphic_failed", item_id: itemId,
-        actor: "telegram", details: { reason: reason.slice(0, 300) } });
-      await telegram("sendMessage", { chat_id: chatId,
-        text: "پیش‌نمایش کامل نشد؛ خبر ذخیره شده و هنوز منتشر نشده است. برای ادامه دکمهٔ تلاش دوباره را بزنید.",
-        reply_markup: { inline_keyboard: [[{ text: "🔄 تلاش دوباره برای ساخت پیش‌نمایش", callback_data: "designposter:" + itemId }]] },
-      });
+    const { data: queued, error } = await db.rpc("enqueue_radin_preview", { p_item_id: itemId, p_chat_id: chatId });
+    if (error || queued !== true) {
+      await telegram("sendMessage", { chat_id: chatId, text: "ثبت در صف آماده‌سازی ناموفق بود؛ خبر ذخیره شده است.",
+        reply_markup: { inline_keyboard: [[{ text: "🔄 تلاش دوباره", callback_data: "designposter:" + itemId }]] } });
+      return;
     }
+    EdgeRuntime.waitUntil(fetch(supabaseUrl + "/functions/v1/radin-preview-queue", {
+      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + serviceKey,
+        "x-radin-telegram-secret": webhookSecret }, body: "{}", signal: AbortSignal.timeout(15000),
+    }).then(response => { if (!response.ok) console.error("Preview wake-up failed", response.status); })
+      .catch(() => console.error("Preview wake-up failed; cron will retry")));
   };
   const getBotQueueCounts = async () => {
     const base = () => db.from("news_items").select("id", { count: "exact", head: true })
@@ -402,13 +392,31 @@ Deno.serve(async (req: Request) => {
       const when = new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tehran" }).format(new Date(item.scheduled_at));
       lines.push((index + 1) + ") " + when + " — " + title);
       const actions: any[] = [];
-      if (index > 0) actions.push({ text: "⬆️", callback_data: "botqueue:up:" + item.id });
-      if (index < list.length - 1) actions.push({ text: "⬇️", callback_data: "botqueue:down:" + item.id });
       actions.push({ text: "لغو", callback_data: "botqueue:cancel:" + item.id });
       keyboard.push(actions);
     });
     if (!list.length) lines.push("صف زمان‌بندی‌شده خالی است.");
-    lines.push("", "جابجایی فقط برای پست‌هایی انجام می‌شود که حداقل دو دقیقه تا زمان انتشار فاصله دارند.");
+    const { data: waiting } = await db.from("radin_preview_jobs")
+      .select("item_id,state,news_items(title)").in("state", ["queued", "processing", "failed"])
+      .order("requested_at", { ascending: false }).limit(8);
+    if (waiting?.length) {
+      lines.push("", "⏳ صف آماده‌سازی — جدیدترین خبر اول:");
+      for (const job of waiting) {
+        const status = job.state === "processing" ? "در حال ساخت" : job.state === "failed" ? "نیاز به تلاش مجدد" : "در انتظار ساخت";
+        lines.push(status + " — " + String(job.news_items?.title || "خبر دریافتی").slice(0, 70));
+        if (job.state === "failed") keyboard.push([{ text: "🔄 تلاش دوباره", callback_data: "designposter:" + job.item_id }]);
+      }
+    }
+    const { data: readyWaiting } = await db.from("news_items")
+      .select("title").eq("published", false).eq("review_status", "pending").is("scheduled_at", null)
+      .in("source_type", ["telegram", "website"]).in("telegram_chat_id", adminIds)
+      .not("graphic_image_url", "is", null).not("telegram_preview_message_id", "is", null)
+      .order("created_at", { ascending: false }).limit(5);
+    if (readyWaiting?.length) {
+      lines.push("", "✅ آماده و منتظر روشن‌شدن صف یا ظرفیت:");
+      for (const item of readyWaiting) lines.push(String(item.title || "خبر دریافتی").slice(0, 70));
+    }
+    lines.push("", "ترتیب خودکار بر اساس جدیدترین دریافت است؛ خبرهای نزدیک زمان انتشار جابه‌جا نمی‌شوند.");
     keyboard.push([{ text: "🔄 تازه‌سازی", callback_data: "botqueue:refresh" }, { text: "↩️ تنظیمات ربات", callback_data: "botsettings:refresh" }]);
     const params: any = { chat_id: chatId, text: lines.join("\n").slice(0, 3900), reply_markup: { inline_keyboard: keyboard }, disable_web_page_preview: true };
     if (messageId) {
@@ -418,55 +426,11 @@ Deno.serve(async (req: Request) => {
     }
   };
 
-  const fillBotQueue = async (userId: string) => {
-    const { data: settings, error: settingsError } = await db.from("bot_settings")
-      .select("auto_publish,schedule_interval_minutes,queue_limit").eq("id", "main").maybeSingle();
-    if (settingsError || !settings) return { ok: false, message: "تنظیمات صف خوانده نشد." };
-    if (settings.auto_publish !== true) return { ok: false, message: "ابتدا ارسال خودکار را روشن کنید؛ صف تا قبل از آن ارسال نمی‌شود." };
-
-    const { data: candidates, error } = await db.from("news_items")
-      .select("id,title,rewritten_title,source_type,graphic_image_url,original_image_url,video_file_id")
-      .eq("published", false).eq("review_status", "pending").is("scheduled_at", null).is("video_file_id", null)
-      .in("source_type", ["telegram", "website"])
-      .not("graphic_image_url", "is", null).not("original_image_url", "is", null)
-      .order("pub_date", { ascending: true }).limit(200);
-    if (error) return { ok: false, message: "دریافت خبرهای آماده ناموفق بود." };
-    const ready = (candidates || []).filter((item: any) =>
-      /^https?:\/\//i.test(String(item.graphic_image_url || "")) &&
-      /^https?:\/\//i.test(String(item.original_image_url || "")) &&
-      (item.source_type !== "telegram" || Boolean(String(item.rewritten_title || "").trim()))
-    ).slice(0, Number(settings.queue_limit || 10));
-    if (!ready.length) return { ok: true, count: 0, message: "خبر آماده‌ای برای چیدن صف پیدا نشد." };
-
-    const { data: latest } = await db.from("news_items").select("scheduled_at")
-      .eq("published", false).not("scheduled_at", "is", null)
-      .order("scheduled_at", { ascending: false }).limit(1).maybeSingle();
-    const intervalMs = Number(settings.schedule_interval_minutes || 60) * 60 * 1000;
-    const latestTime = latest?.scheduled_at ? Date.parse(latest.scheduled_at) : 0;
-    let cursor = Math.max(Date.now(), Number.isFinite(latestTime) ? latestTime : 0);
-    const planned: string[] = [];
-    for (const item of ready) {
-      cursor += intervalMs;
-      const scheduledAt = new Date(cursor).toISOString();
-      const { data: changed, error: updateError } = await db.from("news_items")
-        .update({ scheduled_at: scheduledAt, review_status: "approved", updated_at: new Date().toISOString() })
-        .eq("id", item.id).eq("published", false).eq("review_status", "pending").is("scheduled_at", null)
-        .select("id").maybeSingle();
-      if (updateError || !changed) continue;
-      await db.from("bot_activity").insert({
-        event_type: "scheduled", item_id: item.id, actor: "telegram:" + userId,
-        details: { title: item.rewritten_title || item.title, scheduled_at: scheduledAt, source: "bot_queue" },
-      });
-      planned.push(new Intl.DateTimeFormat("fa-IR", {
-        dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tehran",
-      }).format(new Date(scheduledAt)));
-    }
-    return {
-      ok: true, count: planned.length,
-      message: planned.length
-        ? "✅ تعداد " + planned.length + " پست وارد صف زمان‌بندی شد.\nزمان ارسال‌ها به‌ترتیب:\n" + planned.join("\n")
-        : "خبر آماده‌ای برای چیدن صف پیدا نشد.",
-    };
+  const fillBotQueue = async (_userId: string) => {
+    const { data: count, error } = await db.rpc("fill_radin_publish_queue", { p_admin_chat_ids: adminIds });
+    return error ? { ok: false, message: "چیدن صف ناموفق بود؛ خبرها ذخیره هستند." }
+      : { ok: true, count: count || 0, message: count ? "✅ " + count + " خبر آماده وارد صف شد؛ ترتیب خبرهای جدید از آخرین دریافت است."
+        : "خبر آمادهٔ تازه‌ای وارد صف نشد؛ خبرهای در حال آماده‌سازی پس از تکمیل وارد صف می‌شوند." };
   };
 
   const callback = update.callback_query;
@@ -871,6 +835,11 @@ Deno.serve(async (req: Request) => {
           details: { setting: "auto_publish", value: next },
         });
         await answerCallback(String(callback.id), next ? "انتشار زمان‌بندی‌شده روشن شد." : "انتشار زمان‌بندی‌شده خاموش شد.");
+        if (next) {
+          const result = await fillBotQueue(userId);
+          await telegram("sendMessage", { chat_id: chat, text: result.message });
+          await showScheduledQueue(chat);
+        }
         await showBotSettings(chat, messageId);
         return json({ ok: true });
       }
@@ -1813,7 +1782,7 @@ Deno.serve(async (req: Request) => {
     itemId = inserted.id;
   } else {
     const { error } = await db.from("news_items").update({
-      title, summary: summary || null, image_url: imageUrl || null, telegram_chat_id: forwardedFromTelegram ? Number(chatId) : null, video_file_id: videoFileId || null, source_name: sourceName,
+      title, summary: summary || null, image_url: imageUrl || null, telegram_chat_id: Number(chatId), video_file_id: videoFileId || null, source_name: sourceName,
       original_title: title, original_summary: summary || null, source_type: forwardedFromTelegram ? "telegram" : (sourceUrl ? "website" : "telegram"),
       pub_date: publishedAt, review_status: "pending", graphic_image_url: null, original_image_url: null, updated_at: new Date().toISOString(),
     }).eq("id", itemId).eq("published", false);
