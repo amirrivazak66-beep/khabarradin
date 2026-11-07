@@ -120,7 +120,7 @@ Deno.serve(async(req)=>{
  if(!authorized)return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  let query=db.from("news_items").select("id,title,summary,category,image_url,video_file_id,graphic_image_url,source_name,source_type,pub_date,source_url,telegram_chat_id,telegram_preview_message_id,rewritten_title,telegram_headline_edited,telegram_caption_edited,rewritten_text,graphic_quality_status,graphic_quality_score,graphic_quality_notes,telegram_translation_language,telegram_generate_graphic,created_at").eq("published",false).neq("review_status","rejected");
  if(body.item_id) query=query.eq("id",String(body.item_id));
- else query=query.or("and(graphic_image_url.is.null,or(image_url.not.is.null,source_type.eq.telegram)),and(source_type.eq.telegram,telegram_chat_id.not.is.null,telegram_preview_message_id.is.null)").order("created_at",{ascending:true}).limit(1);
+ else query=query.eq("source_type","rss").or("and(graphic_image_url.is.null,or(image_url.not.is.null,source_type.eq.telegram)),and(source_type.eq.telegram,telegram_chat_id.not.is.null,telegram_preview_message_id.is.null)").order("created_at",{ascending:true}).limit(1);
  const {data:items,error}=await query;
  if(error)return new Response(JSON.stringify({error:error.message}),{status:500,headers:cors});
  const results=[];
@@ -466,7 +466,7 @@ Deno.serve(async(req)=>{
    const {data:pub}=db.storage.from("radin-graphics").getPublicUrl(path);
    const {error:updErr}=await db.from("news_items").update({graphic_image_url:pub.publicUrl,original_image_url:sourceImageUrl,...(generatedTextOnly?{image_url:sourceImageUrl}:{}),...(isTelegram?{rewritten_title:graphicHeadline,...(translationLanguage?{rewritten_text:rawSummary}:{}),graphic_quality_status:graphicQualityStatus,graphic_quality_score:graphicQualityScore,graphic_quality_notes:graphicQualityNotes}:{}),updated_at:new Date().toISOString()}).eq("id",item.id);
    if(updErr)throw updErr;
-   if(body.trigger==="scheduled"&&isTelegram&&item.telegram_chat_id){
+   if(body.trigger==="scheduled"&&item.telegram_chat_id){
      const botToken=Deno.env.get("BOT_TOKEN")||"";
      if(!botToken)throw new Error("Telegram bot token unavailable for queued preview");
      const qualityNote=graphicQualityStatus==="review"?"\n\n⚠️ بررسی کیفیت: "+String(graphicQualityNotes||"پوستر نیاز به بازبینی دارد.").slice(0,180):"";
