@@ -189,8 +189,10 @@ body{background:#f2f6f8}
 .panel,.stat-card{border-radius:18px}
 .btn-primary{background:linear-gradient(135deg,#45cbbb,#269a9b);border-color:#269a9b}
 
-#emailLinkNote,#totpPanel{margin-top:14px;padding:15px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:#fff;line-height:1.8}
-#emailLinkNote[hidden],#totpPanel[hidden],#totpQrWrap[hidden]{display:none!important}
+#emailLinkNote,#emailOtpPanel,#totpPanel{margin-top:14px;padding:15px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:#fff;line-height:1.8}
+#emailLinkNote[hidden],#emailOtpPanel[hidden],#totpPanel[hidden],#totpQrWrap[hidden]{display:none!important}
+#emailOtpCode{direction:ltr;text-align:center;letter-spacing:.25em;font-size:22px}
+#verifyEmailOtpBtn{padding:11px 16px;border:0;border-radius:9px;background:#d4af37;color:#102238;font:inherit;cursor:pointer}
 #emailLinkNote{font-size:12px;color:#c6d2e3}
 #totpPanel h3{font-size:15px;margin:0 0 7px;color:#fff}
 #totpPanel p{font-size:12px;color:#b8c4d5;margin:0 0 12px}
@@ -226,9 +228,15 @@ body{background:#f2f6f8}
         <label for="email">ایمیل مدیر</label>
         <input type="email" id="email" placeholder="admin@example.com" autocomplete="username">
       </div>
-      <button id="loginBtn" type="button">ارسال لینک ورود</button>
+      <button id="loginBtn" type="button">ارسال کد به ایمیل</button>
       <div class="login-error" id="loginError"></div>
-      <div id="emailLinkNote" hidden aria-live="polite">لینک مرحلهٔ اول به ایمیل فرستاده شد. آن را در همین مرورگر باز کنید؛ سپس کد Authenticator را وارد کنید. اگر به صفحهٔ اصلی برگشتید، صفحهٔ مدیریت را دوباره باز کنید.</div>
+      <div id="emailLinkNote" hidden aria-live="polite"></div>
+      <div id="emailOtpPanel" hidden>
+        <p>کد دریافتی در ایمیل را همین‌جا وارد کنید؛ نیازی به بازکردن لینک ورود نیست.</p>
+        <div class="field"><label for="emailOtpCode">کد یک‌بارمصرف ایمیل</label><input id="emailOtpCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+        <button id="verifyEmailOtpBtn" type="button">تأیید کد ایمیل</button>
+        <p id="emailOtpError" role="alert"></p>
+      </div>
       <div id="totpPanel" hidden aria-live="polite">
         <h3 id="totpTitle">تأیید دومرحله‌ای</h3>
         <p id="totpHelp">کد شش‌رقمی برنامهٔ Authenticator را وارد کنید.</p>
@@ -454,6 +462,8 @@ body{background:#f2f6f8}
   let queuedAuthSession = null;
   let lastAuthTokenHandled = '';
   let activeTotpFactorId = '';
+  let pendingOtpEmail = '';
+  const emailOtpPanel = document.getElementById('emailOtpPanel');
   const emailLinkNote = document.getElementById('emailLinkNote');
   const totpPanel = document.getElementById('totpPanel');
   const normalizeTotpCode = value => String(value || '')
@@ -466,6 +476,9 @@ body{background:#f2f6f8}
     el.style.display = message ? 'block' : 'none';
   };
   function showTotpPanel({enrollment = false, qr = '', secret = ''} = {}){
+    emailOtpPanel.hidden = true;
+    document.getElementById('emailOtpCode').value = '';
+    pendingOtpEmail = '';
     emailLinkNote.hidden = true;
     document.getElementById('loginBtn').hidden = true;
     document.getElementById('emailField').hidden = true;
@@ -491,6 +504,10 @@ body{background:#f2f6f8}
     document.getElementById('totpCode').focus();
   }
   function resetLoginPanels(){
+    emailOtpPanel.hidden = true;
+    document.getElementById('emailOtpCode').value = '';
+    document.getElementById('emailOtpError').textContent = '';
+    pendingOtpEmail = '';
     totpPanel.hidden = true;
     emailLinkNote.hidden = true;
     document.getElementById('emailField').hidden = false;
@@ -540,7 +557,7 @@ body{background:#f2f6f8}
       showTotpPanel({enrollment: true, qr: enrolled.totp.qr_code, secret: enrolled.totp.secret});
     } catch (error){
       resetLoginPanels();
-      showLoginError('بررسی ورود دومرحله‌ای انجام نشد. لطفاً دوباره لینک ایمیل را باز کنید.');
+      showLoginError('بررسی ورود دومرحله‌ای انجام نشد. لطفاً دوباره کد ایمیل درخواست کنید.');
       console.error('Admin MFA flow failed', error?.message || error);
     } finally {
       mfaBusy = false;
@@ -555,26 +572,63 @@ body{background:#f2f6f8}
     const button = document.getElementById('loginBtn');
     document.getElementById('loginError').style.display = 'none';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showLoginError('ایمیل مدیر را درست وارد کنید.'); return; }
-    button.disabled = true; button.textContent = 'در حال ارسال لینک...';
+    button.disabled = true; button.textContent = 'در حال ارسال کد...';
+    pendingOtpEmail = '';
+    emailOtpPanel.hidden = true;
+    emailLinkNote.hidden = true;
+    document.getElementById('emailOtpCode').value = '';
+    document.getElementById('emailOtpError').textContent = '';
     try {
       await sb.auth.signOut();
       lastAuthTokenHandled = '';
       const { error } = await sb.auth.signInWithOtp({ email, options: {
-        shouldCreateUser: false, emailRedirectTo: new URL('admin.html', window.location.href).href
+        shouldCreateUser: false
       } });
       if (error) throw error;
+      pendingOtpEmail = email;
+      emailOtpPanel.hidden = false;
       emailLinkNote.hidden = false;
-      emailLinkNote.textContent = 'لینک ورود مرحلهٔ اول به ایمیل فرستاده شد. لینک را باز کنید؛ سپس کد برنامهٔ Authenticator را در همین صفحه وارد کنید.';
+      emailLinkNote.textContent = 'درخواست کد برای ' + email + ' ارسال شد. صندوق ورودی و پوشهٔ هرزنامه را بررسی کنید.';
+      document.getElementById('emailOtpCode').focus();
     } catch (error){
       showLoginError(/rate|too many|email address not authorized/i.test(String(error?.message || ''))
-        ? 'ارسال لینک فعلاً محدود است یا این ایمیل برای ورود مجاز نیست. کمی بعد دوباره تلاش کنید.'
-        : 'ارسال لینک ورود انجام نشد. تنظیمات ایمیل Supabase را بررسی کنید.');
+        ? 'ارسال کد فعلاً محدود است یا این ایمیل برای ورود مجاز نیست. کمی بعد دوباره تلاش کنید.'
+        : 'ارسال کد انجام نشد. کمی بعد دوباره تلاش کنید.');
     } finally {
-      button.disabled = false; button.textContent = 'ارسال دوبارهٔ لینک ورود';
+      button.disabled = false; button.textContent = 'ارسال دوبارهٔ کد ایمیل';
     }
   });
   document.getElementById('email').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('loginBtn').click();
+  });
+  document.getElementById('email').addEventListener('input', () => {
+    if (document.getElementById('email').value.trim().toLowerCase() !== pendingOtpEmail){
+      pendingOtpEmail = '';
+      emailOtpPanel.hidden = true;
+      emailLinkNote.hidden = true;
+      document.getElementById('emailOtpCode').value = '';
+    }
+  });
+  document.getElementById('emailOtpCode').addEventListener('input', event => {
+    event.currentTarget.value = normalizeTotpCode(event.currentTarget.value);
+    document.getElementById('emailOtpError').textContent = '';
+  });
+  document.getElementById('verifyEmailOtpBtn').addEventListener('click', async () => {
+    const token = normalizeTotpCode(document.getElementById('emailOtpCode').value);
+    const errorEl = document.getElementById('emailOtpError');
+    if (!pendingOtpEmail || token.length !== 6){ errorEl.textContent = 'کد شش‌رقمی ایمیل را کامل وارد کنید.'; return; }
+    const button = document.getElementById('verifyEmailOtpBtn');
+    button.disabled = true; errorEl.textContent = '';
+    try {
+      const { data, error } = await sb.auth.verifyOtp({ email: pendingOtpEmail, token, type: 'email' });
+      if (error || !data?.session) throw error || new Error('No session');
+      await handleAdminSession(data.session);
+    } catch {
+      errorEl.textContent = 'کد اشتباه یا منقضی است. تازه‌ترین کد ایمیل را وارد کنید یا کد تازه درخواست کنید.';
+    } finally { button.disabled = false; }
+  });
+  document.getElementById('emailOtpCode').addEventListener('keydown', event => {
+    if (event.key === 'Enter') document.getElementById('verifyEmailOtpBtn').click();
   });
   document.getElementById('totpCode').addEventListener('input', event => {
     event.currentTarget.value = normalizeTotpCode(event.currentTarget.value);
