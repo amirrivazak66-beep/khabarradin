@@ -203,6 +203,7 @@ body{background:#f2f6f8}
 #verifyTotpBtn{padding:12px;border:0;border-radius:10px;background:linear-gradient(135deg,#8df0e1,#58e0d0);color:#071629;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
 #verifyTotpBtn:disabled{opacity:.6;cursor:wait}
 #cancelTotpBtn{padding:10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:transparent;color:#c6d2e3;font:inherit;cursor:pointer}
+#copyTotpSecretBtn{padding:9px 14px;border:1px solid rgba(255,255,255,.3);border-radius:9px;background:#183857;color:#fff;font:inherit;cursor:pointer}
 #totpError{display:none;color:#ff9b9b;font-size:12px;margin-top:9px}
 .access-stack{display:grid;gap:12px}
 .access-card{border:1px solid #e5eaf0;border-radius:14px;padding:14px 16px;background:#fff;display:grid;gap:8px}
@@ -233,7 +234,10 @@ body{background:#f2f6f8}
         <p id="totpHelp">کد شش‌رقمی برنامهٔ Authenticator را وارد کنید.</p>
         <div id="totpQrWrap" hidden>
           <img id="totpQr" alt="QR برای افزودن حساب Radin News به برنامه Authenticator">
-          <div id="totpSecretWrap">اگر امکان اسکن QR ندارید، این کلید را دستی در برنامهٔ Authenticator وارد کنید:<code id="totpSecret"></code></div>
+          <div id="totpSecretWrap">در Google Authenticator یا Microsoft Authenticator، «افزودن حساب» را بزنید و QR را اسکن کنید؛ یا «ورود کلید راه‌اندازی» را انتخاب کنید و کلید زیر را با نوع «زمان‌محور / TOTP» وارد کنید:<code id="totpSecret"></code></div>
+          <button id="copyTotpSecretBtn" type="button">کپی کلید راه‌اندازی</button>
+          <p id="totpCopyStatus" role="status"></p>
+          <p>این کلید را محرمانه نگه دارید. سپس کد شش‌رقمی ساخته‌شده در برنامه را پایین وارد کنید.</p>
         </div>
         <div class="field"><label for="totpCode">کد شش‌رقمی Authenticator</label><input id="totpCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
         <button id="verifyTotpBtn" type="button">تأیید کد و ورود امن</button>
@@ -418,6 +422,7 @@ body{background:#f2f6f8}
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="admin-mfa.js"></script>
 <script src="supabase-config.js"></script>
 <script src="app.js"></script>
 <script>
@@ -472,8 +477,13 @@ body{background:#f2f6f8}
     const qrWrap = document.getElementById('totpQrWrap');
     qrWrap.hidden = !enrollment;
     if (enrollment){
-      document.getElementById('totpQr').src = qr;
+      const qrSource = RadinMfa.qrImageSource(qr);
+      const qrImage = document.getElementById('totpQr');
+      if (qrSource) qrImage.src = qrSource;
+      else qrImage.removeAttribute('src');
+      qrImage.hidden = !qrSource;
       document.getElementById('totpSecret').textContent = secret;
+      document.getElementById('totpCopyStatus').textContent = '';
     }
     document.getElementById('totpCode').value = '';
     setTotpError('');
@@ -487,6 +497,7 @@ body{background:#f2f6f8}
     document.getElementById('loginBtn').hidden = false;
     document.getElementById('totpQr').removeAttribute('src');
     document.getElementById('totpSecret').textContent = '';
+    document.getElementById('totpCopyStatus').textContent = '';
     activeTotpFactorId = '';
     setTotpError('');
   }
@@ -523,12 +534,7 @@ body{background:#f2f6f8}
         showTotpPanel();
         return;
       }
-      const { data: enrolled, error: enrollError } = await sb.auth.mfa.enroll({
-        factorType: 'totp',
-        friendlyName: 'Radin News Admin',
-        issuer: 'Radin News'
-      });
-      if (enrollError) throw enrollError;
+      const enrolled = await RadinMfa.enrollTotp(sb.auth.mfa, factors);
       activeTotpFactorId = enrolled.id;
       lastAuthTokenHandled = session.access_token;
       showTotpPanel({enrollment: true, qr: enrolled.totp.qr_code, secret: enrolled.totp.secret});
@@ -553,7 +559,9 @@ body{background:#f2f6f8}
     try {
       await sb.auth.signOut();
       lastAuthTokenHandled = '';
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+      const { error } = await sb.auth.signInWithOtp({ email, options: {
+        shouldCreateUser: false, emailRedirectTo: new URL('admin.html', window.location.href).href
+      } });
       if (error) throw error;
       emailLinkNote.hidden = false;
       emailLinkNote.textContent = 'لینک ورود مرحلهٔ اول به ایمیل فرستاده شد. لینک را باز کنید؛ سپس کد برنامهٔ Authenticator را در همین صفحه وارد کنید.';
@@ -571,6 +579,20 @@ body{background:#f2f6f8}
   document.getElementById('totpCode').addEventListener('input', event => {
     event.currentTarget.value = normalizeTotpCode(event.currentTarget.value);
     setTotpError('');
+  });
+  document.getElementById('copyTotpSecretBtn').addEventListener('click', async () => {
+    const key = document.getElementById('totpSecret').textContent;
+    if (!key) return;
+    try {
+      await navigator.clipboard.writeText(key);
+      document.getElementById('totpCopyStatus').textContent = 'کلید کپی شد؛ در Authenticator وارد کنید.';
+    } catch {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById('totpSecret'));
+      selection.removeAllRanges(); selection.addRange(range);
+      document.getElementById('totpCopyStatus').textContent = 'کلید را از متن انتخاب‌شده کپی کنید.';
+    }
   });
   document.getElementById('verifyTotpBtn').addEventListener('click', async () => {
     const button = document.getElementById('verifyTotpBtn');
@@ -1125,11 +1147,6 @@ body{background:#f2f6f8}
     } catch (error){ status.classList.add('access-error'); status.textContent = 'بارگذاری ناموفق بود: ' + (error?.message || 'خطای نامشخص'); }
   }
 
-  // ---- Auto-login if session already active ----
-  (async () => {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) await checkWebAdminSession(session.user.email);
-  })();
 })();
 </script>
 <script>

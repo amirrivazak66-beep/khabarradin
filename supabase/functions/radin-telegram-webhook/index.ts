@@ -164,6 +164,29 @@ Deno.serve(async (req: Request) => {
     if (qualityStatus === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]);
     return { inline_keyboard: rows };
   };
+  const processStoryPreview = async (itemId: string, chatId: number | string) => {
+    try {
+      const response = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
+        method: "POST",
+        headers: { "content-type": "application/json", "apikey": serviceKey,
+          "authorization": "Bearer " + serviceKey, "x-radin-telegram-secret": webhookSecret },
+        body: JSON.stringify({ item_id: itemId, trigger: "scheduled" }),
+        signal: AbortSignal.timeout(140000),
+      });
+      const result = await response.json().catch(() => ({}));
+      const processed = result.results?.find((row: any) => row.id === itemId);
+      if (response.ok && processed?.ok) return;
+      throw new Error(String(processed?.error || result.error || "Preview preparation failed").slice(0, 300));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Preview preparation failed";
+      await db.from("bot_activity").insert({ event_type: "graphic_failed", item_id: itemId,
+        actor: "telegram", details: { reason: reason.slice(0, 300) } });
+      await telegram("sendMessage", { chat_id: chatId,
+        text: "پیش‌نمایش کامل نشد؛ خبر ذخیره شده و هنوز منتشر نشده است. برای ادامه دکمهٔ تلاش دوباره را بزنید.",
+        reply_markup: { inline_keyboard: [[{ text: "🔄 تلاش دوباره برای ساخت پیش‌نمایش", callback_data: "designposter:" + itemId }]] },
+      });
+    }
+  };
   const getBotQueueCounts = async () => {
     const base = () => db.from("news_items").select("id", { count: "exact", head: true })
       .eq("published", false).in("source_type", ["telegram", "website"]).neq("review_status", "rejected");
@@ -518,9 +541,7 @@ Deno.serve(async (req: Request) => {
       await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:callback.message?.message_id,reply_markup:{inline_keyboard:[]}});
       const {error:optionError}=await db.from("news_items").update({telegram_translation_language:language==="none"?null:language,telegram_generate_graphic:true,telegram_preview_message_id:null}).eq("id",itemId).eq("published",false);
       if(optionError){await telegram("sendMessage",{chat_id:chatId,text:"ذخیره زبان ناموفق بود؛ خبر را دوباره فوروارد کنید."});return json({ok:true});}
-      const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
-      const result:any=await worker.json().catch(()=>({}));
-      if(!worker.ok||!result.results?.some((x:any)=>x.id===itemId&&x.ok))await telegram("sendMessage",{chat_id:chatId,text:"آماده‌سازی متن ادامه دارد؛ نتیجه پس از تکمیل همین‌جا می‌آید."});
+      await processStoryPreview(itemId,chatId);
       return json({ok:true});
     }
     const designChoice=data.match(/^designposter:([0-9a-f-]{36})$/i);
@@ -531,9 +552,7 @@ Deno.serve(async (req: Request) => {
       await answerCallback(String(callback.id),"درخواست طراحی ثبت شد.");
       await telegram("editMessageReplyMarkup",{chat_id:chatId,message_id:messageId,reply_markup:{inline_keyboard:[]}});
       await db.from("news_items").update({telegram_generate_graphic:true,telegram_preview_message_id:null,graphic_image_url:null,graphic_quality_status:null,graphic_quality_score:null,graphic_quality_notes:null,updated_at:new Date().toISOString()}).eq("id",itemId).eq("published",false);
-      const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
-      const result:any=await worker.json().catch(()=>({}));
-      if(!worker.ok||!result.results?.some((x:any)=>x.id===itemId&&x.ok))await telegram("sendMessage",{chat_id:chatId,text:"درخواست طراحی ثبت شد؛ پوستر در صف آماده‌سازی است."});
+      await processStoryPreview(itemId,chatId);
       return json({ok:true});
     }
     if (data.startsWith("insta:export:")) {
@@ -725,7 +744,7 @@ Deno.serve(async (req: Request) => {
       const chat = callback.message?.chat?.id;
       const messageId = callback.message?.message_id;
       const { data: item } = await db.from("news_items")
-        .select("id,title,summary,rewritten_title,rewritten_text,source_name,source_type,pub_date,graphic_image_url,telegram_chat_id,published")
+        .select("id,title,summary,rewritten_title,rewritten_text,source_name,source_type,pub_date,graphic_image_url,graphic_quality_status,video_file_id,telegram_chat_id,published")
         .eq("id", itemId).maybeSingle();
       if (!item || item.published || item.graphic_quality_status !== "review" || (item.telegram_chat_id && String(item.telegram_chat_id) !== String(chat))) {
         await answerCallback(String(callback.id), "این پوستر قابل بازتولید نیست.");
@@ -743,7 +762,7 @@ Deno.serve(async (req: Request) => {
       }
       const response = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
         method: "POST",
-        headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
+        headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey, "x-radin-telegram-secret": webhookSecret },
         body: JSON.stringify({ item_id: itemId }),
         signal: AbortSignal.timeout(140000),
       });
@@ -759,9 +778,9 @@ Deno.serve(async (req: Request) => {
       const note = ready.graphic_quality_status === "review" ? "\n\n⚠️ بررسی کیفیت: " + String(ready.graphic_quality_notes || "پوستر نیاز به بازبینی دارد.").slice(0, 180) : "";
       const caption = ("پیش‌نمایش خبر — هنوز منتشر نشده\n" + String(ready.rewritten_title || ready.title || "") + (ready.rewritten_text ? "\n\n" + ready.rewritten_text : ready.summary ? "\n\n" + ready.summary : "") + note).slice(0, 1024);
       const keyboard = previewKeyboard(itemId, ready.graphic_quality_status, isAdminCallback);
-      const edited = await telegram("editMessageMedia", { chat_id: chat, message_id: messageId, media: ready.video_file_id ? { type: "video", media: ready.video_file_id, cover: ready.graphic_image_url, caption } : { type: "photo", media: ready.graphic_image_url, caption }, reply_markup: { inline_keyboard: keyboard } });
+      const edited = await telegram("editMessageMedia", { chat_id: chat, message_id: messageId, media: ready.video_file_id ? { type: "video", media: ready.video_file_id, cover: ready.graphic_image_url, caption } : { type: "photo", media: ready.graphic_image_url, caption }, reply_markup: keyboard });
       if (!edited.response.ok || !edited.result.ok) {
-        const sent = await telegram(ready.video_file_id ? "sendVideo" : "sendPhoto", ready.video_file_id ? { chat_id: chat, video: ready.video_file_id, cover: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } } : { chat_id: chat, photo: ready.graphic_image_url, caption, reply_markup: { inline_keyboard: keyboard } });
+        const sent = await telegram(ready.video_file_id ? "sendVideo" : "sendPhoto", ready.video_file_id ? { chat_id: chat, video: ready.video_file_id, cover: ready.graphic_image_url, caption, reply_markup: keyboard } : { chat_id: chat, photo: ready.graphic_image_url, caption, reply_markup: keyboard });
         if (sent.response.ok && sent.result.ok) await db.from("news_items").update({ telegram_preview_message_id: sent.result.result?.message_id || null }).eq("id", itemId);
       }
       await db.from("bot_activity").insert({ event_type: "graphic_regenerated", item_id: itemId, actor: "telegram:" + userId, details: { quality_status: ready.graphic_quality_status, score: result.results?.find((row: any) => row.id === itemId)?.graphic_quality_score ?? null } });
@@ -1145,7 +1164,7 @@ Deno.serve(async (req: Request) => {
         try {
           workerResponse = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
             method: "POST",
-            headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
+            headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey, "x-radin-telegram-secret": webhookSecret },
             body: JSON.stringify({ item_id: editing.id, graphic_edit_prompt: fullGraphicPrompt, preserve_headline: true }),
             signal: AbortSignal.timeout(150000),
           });
@@ -1224,7 +1243,7 @@ Deno.serve(async (req: Request) => {
       await telegram("sendMessage", { chat_id: chatId, text: "✏️ تیتر ذخیره شد؛ پوستر را با تیتر جدید بازطراحی می‌کنم..." });
       const workerResponse = await fetch(supabaseUrl + "/functions/v1/radin-graphic-worker", {
         method: "POST",
-        headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey },
+        headers: { "content-type": "application/json", "apikey": serviceKey, "authorization": "Bearer " + serviceKey, "x-radin-telegram-secret": webhookSecret },
         body: JSON.stringify({ item_id: editing.id }),
         signal: AbortSignal.timeout(140000),
       });
@@ -1823,13 +1842,7 @@ Deno.serve(async (req: Request) => {
     }
     await db.from("bot_activity").insert({event_type:"language_detected",item_id:itemId,actor:"telegram",details:{language:"fa",translation_skipped:true}});
     await telegram("sendMessage",{chat_id:chatId,text:"کپشن فارسی تشخیص داده شد؛ بدون ترجمه در حال آماده‌سازی پیش‌نمایش گرافیکی است."});
-    const worker=await fetch(supabaseUrl+"/functions/v1/radin-graphic-worker",{method:"POST",headers:{"content-type":"application/json","apikey":serviceKey,"authorization":"Bearer "+serviceKey},body:JSON.stringify({item_id:itemId,trigger:"scheduled"}),signal:AbortSignal.timeout(140000)});
-    const result:any=await worker.json().catch(()=>({}));
-    const processed=(result.results||[]).find((x:any)=>x.id===itemId);
-    if(!worker.ok||!processed?.ok){
-      const reason=String(processed?.error||result.error||"خطای موقت در آماده‌سازی").slice(0,220);
-      await telegram("sendMessage",{chat_id:chatId,text:"پیش‌نمایش کامل نشد؛ می‌توانید دوباره برای همین خبر تلاش کنید.\n\nجزئیات: "+reason,reply_markup:{inline_keyboard:[[{text:"🔄 تلاش دوباره برای ساخت پیش‌نمایش",callback_data:"designposter:"+itemId}]]}});
-    }
+    await processStoryPreview(itemId,chatId);
     return json({ok:true});
   }
   const optionKeyboard={inline_keyboard:[
@@ -1840,74 +1853,4 @@ Deno.serve(async (req: Request) => {
   await db.from("bot_activity").insert({event_type:"language_detected",item_id:itemId,actor:"telegram",details:{language:"non_fa",translation_choices_shown:true}});
   await telegram("sendMessage",{chat_id:chatId,text:"کپشن غیر فارسی تشخیص داده شد. زبان متن را برای ترجمه و آماده‌سازی پیش‌نمایش انتخاب کنید:",reply_markup:optionKeyboard});
   return json({ok:true});
-  const { data: ready } = await db.from("news_items")
-    .select("title,summary,rewritten_title,rewritten_text,category,source_name,source_type,source_url,pub_date,created_at,graphic_image_url,graphic_quality_status,graphic_quality_score,graphic_quality_notes")
-    .eq("id", itemId).maybeSingle();
-  if (!ready?.graphic_image_url) {
-    await telegram("sendMessage", { chat_id: chatId, text: "پوستر هنوز آماده نیست؛ خبر منتشر نشده است." });
-    return json({ ok: true });
-  }
-  await db.from("bot_activity").insert({event_type:"graphic_ready",item_id:itemId,actor:"telegram",details:{title}});
-  const workerItemResult = workerResult.results.find((row: any) => row.id === itemId);
-  const aiStatus = String(workerItemResult?.ai_status || "not_applicable");
-  const designNote = aiStatus === "no_credits"
-    ? "⚠️ بازطراحی AI انجام نشد چون اعتبار API کافی نیست؛ پوستر با قالب رادین آماده شد."
-    : aiStatus === "missing_key"
-    ? "⚠️ کلید API تصویر تنظیم نشده؛ پوستر با قالب رادین آماده شد."
-    : aiStatus === "timeout"
-    ? "⚠️ بازطراحی AI به‌موقع پاسخ نداد؛ پوستر با قالب رادین آماده شد."
-    : aiStatus === "api_error"
-    ? "⚠️ بازطراحی AI ناموفق بود؛ پوستر با قالب رادین آماده شد."
-    : "";
-  const qualityWarning = ready.graphic_quality_status === "review" ? "\n\n⚠️ بررسی کیفیت: " + String(ready.graphic_quality_notes || "پوستر نیاز به بازبینی دارد.").slice(0, 180) : "";
-  const verificationNotes: string[] = [];
-  if (/^https?:\/\//i.test(String(ready.source_url || ""))) {
-    try { verificationNotes.push("🔎 منبع قابل پیگیری: " + new URL(String(ready.source_url)).hostname); } catch {}
-  } else if (ready.source_type === "telegram") {
-    const sender = String(ready.source_name || "").trim();
-    verificationNotes.push(sender.startsWith("@")
-      ? "📡 منبع فوروارد: " + sender + "؛ راستی‌آزمایی مستقل انجام نشده"
-      : sender ? "⚠️ منبع فوروارد: " + sender + "؛ شناسهٔ عمومی برای بررسی در دسترس نیست"
-      : "⚠️ منبع اصلی مشخص نیست؛ پیش از انتشار بررسی کنید");
-  }
-  const shortStoryWarning = String(ready.rewritten_text || ready.summary || "").trim().length < 120
-    ? "⚠️ متن توضیحی کوتاه است؛ جزئیات خبر را بررسی کنید"
-    : "";
-  const receivedAt = ready.created_at
-    ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tehran" }).format(new Date(ready.created_at))
-    : "";
-  const previewText = [
-    "پیش‌نمایش خبر — هنوز منتشر نشده",
-    ready.rewritten_title || ready.title,
-    (ready.rewritten_text || ready.summary) ? "\n" + (ready.rewritten_text || ready.summary) : "",
-    ...verificationNotes,
-    shortStoryWarning,
-    "\nتاریخ خبر: " + new Date(ready.pub_date || publishedAt).toLocaleDateString("fa-IR"),
-    receivedAt ? "دریافت ربات: " + receivedAt : "",
-  ].filter(Boolean).join("\n") + qualityWarning;
-  const safePreviewText = previewText.slice(0, 1024);
-  const preview = await telegram("sendPhoto", {
-    chat_id: chatId,
-    photo: ready.graphic_image_url,
-    caption: safePreviewText,
-    reply_markup: { inline_keyboard: (() => { const rows: any[] = [
-      [{ text: "✏️ ویرایش تیتر", callback_data: "edit:headline:" + itemId }, { text: "📝 ویرایش کپشن", callback_data: "edit:caption:" + itemId }],
-        [{ text: "🎨 ویرایش تصویر", callback_data: "edit:graphic:" + itemId }],
-      [{ text: "✅ انتشار در کانال", callback_data: "publish:" + itemId }, { text: "🗑 رد خبر", callback_data: "reject:" + itemId }],
-        [{ text: "📥 بسته اینستاگرام", callback_data: "insta:export:" + itemId }],
-    ]; if (ready.graphic_quality_status === "review") rows.unshift([{ text: "🔄 بازتولید پوستر", callback_data: "regenerate:" + itemId }]); return rows; })() },
-  });
-  if (!preview.response.ok || !preview.result.ok) {
-    console.error("Telegram preview failed", preview.response.status, preview.result?.description || "unknown");
-    await telegram("sendMessage", { chat_id: chatId, text: "پوستر آماده شد، اما ارسال پیش‌نمایش در گفتگو ناموفق بود. از پنل مدیریت خبر را بررسی کنید." });
-  } else {
-    console.log("Manual story preview delivered", itemId, preview.result.result?.message_id || "unknown");
-    const previewMessageId=preview.result.result?.message_id||null;
-    await db.from("news_items").update({telegram_preview_message_id:previewMessageId}).eq("id",itemId);
-    await db.from("bot_activity").insert({event_type:"preview_sent",item_id:itemId,actor:"telegram",details:{preview_message_id:previewMessageId,title}});
-  }
-  if (designNote) {
-    await telegram("sendMessage", { chat_id: chatId, text: designNote, disable_web_page_preview: true });
-  }
-  return json({ ok: true });
 });
