@@ -67,14 +67,20 @@ function hasAdminMfa(claims: Record<string, unknown>): boolean {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "POST required" }), { status: 405, headers: cors });
-  const configuredCronSecret = Deno.env.get("RADIN_CRON_SECRET") || "";
-  const cronAuthorized = configuredCronSecret.length > 0 &&
-    req.headers.get("x-radin-cron-secret") === configuredCronSecret;
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   if (!supabaseUrl || !serviceKey) return new Response(JSON.stringify({ error: "Server configuration missing" }), { status: 500, headers: cors });
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  // Use the same Vault-backed verifier as the automation runner and publisher.
+  // A service-role bearer token alone must never authorize a cron request.
+  const cronCandidate = req.headers.get("x-radin-cron-secret") || "";
+  let cronAuthorized = false;
+  if (cronCandidate) {
+    const { data: authorized, error: cronError } = await db.rpc("verify_radin_cron_secret", { candidate: cronCandidate });
+    if (cronError) return new Response(JSON.stringify({ error: "Cron authorization unavailable" }), { status: 503, headers: cors });
+    cronAuthorized = authorized === true;
+  }
 
   if (!cronAuthorized) {
     const authHeader = req.headers.get("authorization") || "";
@@ -119,24 +125,26 @@ Deno.serve(async (req: Request) => {
         source_url: item.link, source_name: hostOf(feed.url), pub_date: item.pubDate,
         published: false, review_status: "pending",
       }));
-      let newRows = rows;
+      let newCount = 0;
       if (rows.length) {
-        const sourceUrls = rows.map((row) => row.source_url);
-        const { data: existingRows, error: existingError } = await db.from("news_items")
-          .select("source_url").in("source_url", sourceUrls);
-        if (existingError) throw existingError;
-        const existingUrls = new Set((existingRows || []).map((row) => row.source_url));
-        newRows = rows.filter((row) => !existingUrls.has(row.source_url));
-        if (newRows.length) {
-          const { error } = await db.from("news_items").insert(newRows);
-          if (error) throw error;
-        }
+        // Persian article URLs can exceed gateway limits when combined in a
+        // GET .in() filter. Send them in the POST body and let the unique
+        // source_url constraint resolve duplicates atomically. Never update
+        // existing stories: that would reset editorial approval/publication.
+        const uniqueRows = [...new Map(rows.map(row => [row.source_url, row])).values()];
+        const { data: inserted, error } = await db.from("news_items")
+          .upsert(uniqueRows, { onConflict: "source_url", ignoreDuplicates: true })
+          .select("source_url");
+        if (error) throw error;
+        newCount = inserted?.length || 0;
       }
       await db.from("rss_feeds").update({ last_fetched_at: new Date().toISOString(), last_error: null }).eq("id", feed.id);
-      totalFetched += parsed.length; totalUpserted += newRows.length;
-      reports.push({ feed: hostOf(feed.url), fetched: parsed.length, newItems: newRows.length, ok: true });
+      totalFetched += parsed.length; totalUpserted += newCount;
+      reports.push({ feed: hostOf(feed.url), fetched: parsed.length, newItems: newCount, ok: true });
     } catch (e) {
-      const message = e instanceof Error ? e.message.slice(0, 500) : "Unknown feed error";
+      // PostgREST errors are plain objects, not instances of Error.
+      const message = (e && typeof e === "object" && "message" in e && typeof e.message === "string"
+        ? e.message : "Unknown feed error").slice(0, 500);
       await db.from("rss_feeds").update({ last_fetched_at: new Date().toISOString(), last_error: message }).eq("id", feed.id);
       reports.push({ feed: hostOf(feed.url), fetched: 0, ok: false, error: message });
     }
